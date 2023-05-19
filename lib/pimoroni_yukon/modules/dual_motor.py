@@ -3,8 +3,9 @@
 # SPDX-License-Identifier: MIT
 
 from .common import *
-import digitalio
-import pwmio
+from digitalio import DigitalInOut
+from pwmio import PWMOut
+from adafruit_motor.motor import DCMotor
 
 
 class DualMotorModule(YukonModule):
@@ -47,21 +48,18 @@ class DualMotorModule(YukonModule):
     def init(self, slot, adc1_func, adc2_func):
         super().init(slot, adc1_func, adc2_func)
 
-        import pwmio
-        from adafruit_motor import motor
-
         # Create PWMOut objects
-        self.pwms_p = [pwmio.PWMOut(slot.FAST2, frequency=self.frequency),
-                       pwmio.PWMOut(slot.FAST4, frequency=self.frequency)]
-        self.pwms_n = [pwmio.PWMOut(slot.FAST1, frequency=self.frequency),
-                       pwmio.PWMOut(slot.FAST3, frequency=self.frequency)]
+        self.pwms_p = [PWMOut(slot.FAST2, frequency=self.frequency),
+                       PWMOut(slot.FAST4, frequency=self.frequency)]
+        self.pwms_n = [PWMOut(slot.FAST1, frequency=self.frequency),
+                       PWMOut(slot.FAST3, frequency=self.frequency)]
 
         # Create motor objects
-        self.motors = [motor.DCMotor(self.pwms_p[i], self.pwms_n[i]) for i in range(len(self.pwms_p))]
+        self.motors = [DCMotor(self.pwms_p[i], self.pwms_n[i]) for i in range(len(self.pwms_p))]
 
-        self.p_decay = digitalio.DigitalInOut(slot.SLOW1)
-        self.p_toff = digitalio.DigitalInOut(slot.SLOW2)
-        self.p_en = digitalio.DigitalInOut(slot.SLOW3)
+        self.p_decay = DigitalInOut(slot.SLOW1)
+        self.p_toff = DigitalInOut(slot.SLOW2)
+        self.p_en = DigitalInOut(slot.SLOW3)
 
         self.reset()
 

@@ -429,20 +429,20 @@ class Yukon:
         self.__last_voltage = self.read_voltage()
         if self.__last_voltage > self.__voltage_limit:
             self.disable_main_output()
-            raise RuntimeError(f"Yukon - Voltage of {voltage}V exceeded the user set level of {self.__voltage_limit}V! Turning off output")
+            raise RuntimeError(f"Yukon - Voltage of {self.__last_voltage}V exceeded the user set level of {self.__voltage_limit}V! Turning off output")
         elif self.__last_voltage < 4.8:
             self.disable_main_output()
-            raise RuntimeError(f"Yukon - Voltage of {voltage}V below minimum operating level. Turning off output")
+            raise RuntimeError(f"Yukon - Voltage of {self.__last_voltage}V below minimum operating level. Turning off output")
 
         self.__last_current = self.read_current()
         if self.__last_current > self.__current_limit:
             self.disable_main_output()
-            raise RuntimeError(f"Yukon - Current of {current}A exceeded the user set level of {self.__current_limit}A! Turning off output")
+            raise RuntimeError(f"Yukon - Current of {self.__last_current}A exceeded the user set level of {self.__current_limit}A! Turning off output")
 
         self.__last_temperature = self.read_temperature()
         if self.__last_temperature > self.__temperature_limit:
             self.disable_main_output()
-            raise RuntimeError(f"Yukon - Temperature of {temp}°C exceeded the user set level of {self.__temperature_limit}°C! Turning off output")
+            raise RuntimeError(f"Yukon - Temperature of {self.__last_temperature}°C exceeded the user set level of {self.__temperature_limit}°C! Turning off output")
 
         slot_num = 1
         for slot, module in self.__slot_assignments.items():
