@@ -38,7 +38,7 @@ class Yukon:
         self.__voltage_limit = voltage_limit
         self.__current_limit = current_limit
         self.__temperature_limit = temperature_limit
-        
+
         from collections import OrderedDict
         self.__slot_assignments = OrderedDict({
             board.SLOT1: None,
@@ -108,6 +108,14 @@ class Yukon:
             raise ValueError("slot is not a valid slot object or index")
 
         return slot
+
+    def find_slots_with_module(self, module_type):
+        slots = []
+        for slot in range(1, self.NUM_SLOTS + 1):  # Loop from 1 to 6
+            detected = self.detect_module(slot)
+            if detected is module_type:
+                slots.append(slot)
+        return slots
 
     def register_with_slot(self, module, slot):
         if self.is_main_output():
@@ -203,7 +211,9 @@ class Yukon:
         raise_unregistered = False
         raise_undetected = False
         raise_discrepency = False
+        unregistered_slots = 0
         slot_num = 1
+
         for slot, module in self.__slot_assignments.items():
             print(f"[Slot {slot_num}]", end=" ")
             detected = self.__detect_module(slot)
@@ -215,6 +225,7 @@ class Yukon:
                         raise_undetected = True
                 else:
                     print(f"Module slot is empty.")
+                    unregistered_slots += 1
             else:
                 if type(module) is detected:
                     print(f"'{module.NAME}' module detected and registered.")
@@ -227,7 +238,11 @@ class Yukon:
                         print(f"'{detected.NAME}' module detected but not registered.", sep="")
                         if slot not in allow_unregistered:
                             raise_unregistered = True
+                        unregistered_slots += 1
             slot_num += 1
+            
+        if unregistered_slots == 6:
+            raise RuntimeError("No modules have been registered with Yukon. At least one module needs to be registered to enable the output")
 
         if raise_discrepency:
             raise RuntimeError("Detected a different combination of modules than what was registered with Yukon. Please check the modules attached to your board and the program you are running.")
@@ -246,7 +261,7 @@ class Yukon:
 
         for slot, module in self.__slot_assignments.items():
             if module is not None:
-                module.init(slot, self.read_slot_adc1)
+                module.init(slot, self.read_slot_adc1, self.read_slot_adc2_as_temp)
 
     def is_pressed(self, switch):
         if switch is self.SWITCH_A_NAME:
@@ -272,7 +287,7 @@ class Yukon:
         self.__leds[switch].value = value
 
     def enable_main_output(self):
-        if self.__main_en.value is False:
+        if self.is_main_output() is False:
             import time
             start = time.monotonic_ns()
 
@@ -284,11 +299,11 @@ class Yukon:
             dur = 100 * 1000 * 1000
             dur_b = 5 * 1000 * 1000
 
-            self.__main_en.value = True
+            self.__enable_main_output()
             while True:
                 new_voltage = ((self.__shared_adc_voltage() - self.VOLTAGE_MIN_MEASURE) * self.VOLTAGE_MAX) / (self.VOLTAGE_MAX_MEASURE - self.VOLTAGE_MIN_MEASURE)
                 if new_voltage > 18:
-                    self.__main_en.value = False
+                    self.disable_main_output()
                     raise RuntimeError("Voltage exceeded user safe level! Turning off output")
 
                 new_time = time.monotonic_ns()
@@ -301,10 +316,20 @@ class Yukon:
                     first_stable_time = 0
 
                 if new_time - start > dur:
-                    self.__main_en.value = False
+                    self.disable_main_output()
                     raise RuntimeError("Voltage did not stablise in an acceptable time. Turning off output")
 
                 old_voltage = new_voltage
+
+            if new_voltage < 0.05:
+                self.disable_main_output()
+                raise RuntimeError("No voltage detected! Make sure power is being provided to the XT-30 (yellow) connector")
+            elif new_voltage < 4.8:
+                self.disable_main_output()
+                raise RuntimeError("Voltage below minimum operating level. Turning off output")
+
+    def __enable_main_output(self):
+        self.__main_en.value = True
 
     def disable_main_output(self):
         self.__main_en.value = False
@@ -399,22 +424,34 @@ class Yukon:
 
         # https://www.allaboutcircuits.com/projects/measuring-temperature-with-an-ntc-thermistor/
         return tCelsius
-    
-    def monitor(self):
-        voltage = self.read_voltage()
-        if voltage > self.__voltage_limit:
-            self.disable_main_output()
-            raise RuntimeError(f"Voltage of {voltage}V exceeded the user set level of {self.__voltage_limit}V! Turning off output")
 
-        current = self.read_current()
-        if current > self.__current_limit:
+    def monitor(self):
+        self.__last_voltage = self.read_voltage()
+        if self.__last_voltage > self.__voltage_limit:
             self.disable_main_output()
-            raise RuntimeError(f"Current of {current}A exceeded the user set level of {self.__current_limit}A! Turning off output")
-        
-        temp = self.read_temperature()
-        if temp > self.__temperature_limit:
+            raise RuntimeError(f"Yukon - Voltage of {voltage}V exceeded the user set level of {self.__voltage_limit}V! Turning off output")
+        elif self.__last_voltage < 4.8:
             self.disable_main_output()
-            raise RuntimeError(f"Temperature of {temp}°C exceeded the user set level of {self.__temperature_limit}°C! Turning off output")
+            raise RuntimeError(f"Yukon - Voltage of {voltage}V below minimum operating level. Turning off output")
+
+        self.__last_current = self.read_current()
+        if self.__last_current > self.__current_limit:
+            self.disable_main_output()
+            raise RuntimeError(f"Yukon - Current of {current}A exceeded the user set level of {self.__current_limit}A! Turning off output")
+
+        self.__last_temperature = self.read_temperature()
+        if self.__last_temperature > self.__temperature_limit:
+            self.disable_main_output()
+            raise RuntimeError(f"Yukon - Temperature of {temp}°C exceeded the user set level of {self.__temperature_limit}°C! Turning off output")
+
+        slot_num = 1
+        for slot, module in self.__slot_assignments.items():
+            if module is not None:
+                message = module.monitor()
+                if message is not None:
+                    self.disable_main_output()
+                    raise RuntimeError(f"'{module.NAME}' module in Slot {slot_num} - {message}! Turning off output") 
+            slot_num += 1
 
     def monitored_sleep(self, seconds):
         if seconds < 0:
@@ -426,6 +463,15 @@ class Yukon:
         while remaining_ms > 0:
             self.monitor()
             remaining_ms = end_ms - supervisor.ticks_ms()
+
+    def last_voltage(self):
+        return self.__last_voltage
+
+    def last_current(self):
+        return self.__last_current
+
+    def last_temperature(self):
+        return self.__last_temperature
 
     def lcd_dc(self, value):
         self.__lcd_dc.value = value
@@ -451,7 +497,7 @@ class Yukon:
         self.__lcd_bl.value = False
         self.__lcd_cs.value = False
         self.__lcd_dc.value = False
-        
+
         for slot, module in self.__slot_assignments.items():
             if module is not None:
                 try:

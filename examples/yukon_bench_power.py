@@ -16,7 +16,7 @@ try:
     yukon.register_with_slot(pot, SLOT+1)
 
     # Initialise Yukon's registered modules
-    yukon.initialise_modules(allow_unregistered=True, allow_undetected=False)
+    yukon.initialise_modules(allow_unregistered=True, allow_undetected=True)
 
     # Turn on the module power
     yukon.enable_main_output()
@@ -34,7 +34,7 @@ try:
 
         # Use the Yukon class to sleep, which lets it monitor voltage, current, and temperature
         yukon.monitored_sleep(0.1)
-            
+
 finally:
     # Put the board back into a safe state, regardless of how the program may have ended
     yukon.reset()

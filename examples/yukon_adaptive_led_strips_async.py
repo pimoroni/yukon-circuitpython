@@ -31,13 +31,11 @@ async def check_system():
 
 
 async def logic():  # Don't forget the async!
-    # Go through each Yukon slot, and detect which have LED strips attached
-    for slot in range(1, yukon.NUM_SLOTS + 1):  # Loop from 1 to 6
-        detected = yukon.detect_module(slot)
-        if detected is LEDStripModule:
-            strip = LEDStripModule(STRIP_TYPE, LEDS_PER_STRIP, BRIGHTNESS)
-            yukon.register_with_slot(strip, slot)
-            strips.append(strip)
+    # Create a LED Strip class for each populated module slot
+    for slot in yukon.find_slots_with_module(LEDStripModule):
+        strip = LEDStripModule(STRIP_TYPE, LEDS_PER_STRIP, BRIGHTNESS)
+        yukon.register_with_slot(strip, slot)
+        strips.append(strip)
 
     # Initialise Yukon's registered modules
     yukon.initialise_modules(allow_unregistered=True)
