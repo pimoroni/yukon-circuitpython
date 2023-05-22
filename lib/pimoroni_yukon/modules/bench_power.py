@@ -43,7 +43,7 @@ class BenchPowerModule(YukonModule):
         
     def read_voltage(self):
         # return (self.__shared_adc_voltage() * (100 + 22)) / 22
-        voltage = self.read_adc1(self.slot)
+        voltage = self.__read_adc1()
         if voltage >= self.VOLTAGE_MID_MEASURE:
             return ((voltage - self.VOLTAGE_MID_MEASURE) * (self.VOLTAGE_MAX - self.VOLTAGE_MID)) / (self.VOLTAGE_MAX_MEASURE - self.VOLTAGE_MID_MEASURE) + self.VOLTAGE_MID
         else:

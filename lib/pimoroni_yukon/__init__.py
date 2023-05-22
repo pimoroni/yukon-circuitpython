@@ -29,8 +29,9 @@ class Yukon:
     SWITCH_B_NAME = 'B'
     SWITCH_USER = 2
     NUM_SLOTS = 6
-    
+
     DEFAULT_VOLTAGE_LIMIT = 17.2
+    VOLTAGE_LOWER_LIMIT = 4.8
     DEFAULT_CURRENT_LIMIT = 15
     DEFAULT_TEMPERATURE_LIMIT = 90
 
@@ -109,12 +110,30 @@ class Yukon:
 
         return slot
 
-    def find_slots_with_module(self, module_type):
+    def find_slots_with_module(self, module_type, debug_level=0):
+        if self.is_main_output():
+            raise RuntimeError("Cannot find slots with modules whilst the main output is active")
+
+        if debug_level >= 1:
+            print(f"Finding slots with '{module_type.NAME}' module")
+
         slots = []
-        for slot in range(1, self.NUM_SLOTS + 1):  # Loop from 1 to 6
-            detected = self.detect_module(slot)
+        slot_num = 1
+
+        for slot, module in self.__slot_assignments.items():
+            if debug_level >= 1:
+                print(f"[Slot {slot_num}]", end=" ")
+            detected = self.__detect_module(slot, debug_level=debug_level)
+
             if detected is module_type:
-                slots.append(slot)
+                if debug_level >= 1:
+                    print(f"Found '{detected.NAME}' module")
+                slots.append(slot_num)
+            else:
+                if debug_level >= 1:
+                    print(f"No '{module_type.NAME}` module")
+
+            slot_num += 1
         return slots
 
     def register_with_slot(self, module, slot):
@@ -146,7 +165,7 @@ class Yukon:
                 return m
         return None
 
-    def __detect_module(self, slot):
+    def __detect_module(self, slot, debug_level):
         slow1 = digitalio.DigitalInOut(slot.SLOW1)
         slow1.direction = digitalio.Direction.INPUT
 
@@ -162,7 +181,8 @@ class Yukon:
             adc_val += self.__shared_adc_voltage()
         adc_val /= 64
 
-        # print(adc_val, int(slow1.value), int(slow2.value), int(slow3.value), end="\t")
+        if debug_level >= 2:
+            print(f"ADC V = {adc_val}, S1 = {int(slow1.value)}, S2 = {int(slow2.value)}, S3 = {int(slow3.value)}", end=", ")
 
         adc_level = ADC_FLOAT
         if adc_val <= 0.1:
@@ -179,13 +199,13 @@ class Yukon:
 
         return detected
 
-    def detect_module(self, slot):
+    def detect_module(self, slot, debug_level=1):
         if self.is_main_output():
             raise RuntimeError("Cannot detect modules whilst the main output is active")
 
         slot = self.__check_slot(slot)
 
-        return self.__detect_module(slot)
+        return self.__detect_module(slot, debug_level=debug_level)
 
     def __expand_slot_list(self, slot_list):
         if type(slot_list) is bool:
@@ -202,7 +222,7 @@ class Yukon:
 
         return [self.__check_slot(slot_list)]
 
-    def __verify_modules(self, allow_unregistered=False, allow_undetected=False, allow_discrepencies=False):
+    def __verify_modules(self, allow_unregistered=False, allow_undetected=False, allow_discrepencies=False, debug_level=1):
         # Take the allowed parameters and expand them into slot lists that are easier to compare against
         allow_unregistered = self.__expand_slot_list(allow_unregistered)
         allow_undetected = self.__expand_slot_list(allow_undetected)
@@ -215,32 +235,38 @@ class Yukon:
         slot_num = 1
 
         for slot, module in self.__slot_assignments.items():
-            print(f"[Slot {slot_num}]", end=" ")
-            detected = self.__detect_module(slot)
+            if debug_level >= 1:
+                print(f"[Slot {slot_num}]", end=" ")
+            detected = self.__detect_module(slot, debug_level=debug_level)
 
             if detected is None:
                 if module is not None:
-                    print(f"No module detected! Expected a '{module.NAME}' module.")
+                    if debug_level >= 1:
+                        print(f"No module detected! Expected a '{module.NAME}' module.")
                     if slot not in allow_undetected:
                         raise_undetected = True
                 else:
-                    print(f"Module slot is empty.")
+                    if debug_level >= 1:
+                        print(f"Module slot is empty.")
                     unregistered_slots += 1
             else:
                 if type(module) is detected:
-                    print(f"'{module.NAME}' module detected and registered.")
+                    if debug_level >= 1:
+                        print(f"'{module.NAME}' module detected and registered.")
                 else:
                     if module is not None:
-                        print(f"Module discrepency! Expected a '{module.NAME}' module, but detected a '{detected.NAME}' module.")
+                        if debug_level >= 1:
+                            print(f"Module discrepency! Expected a '{module.NAME}' module, but detected a '{detected.NAME}' module.")
                         if slot not in allow_discrepencies:
                             raise_discrepency = True
                     else:
-                        print(f"'{detected.NAME}' module detected but not registered.", sep="")
+                        if debug_level >= 1:
+                            print(f"'{detected.NAME}' module detected but not registered.", sep="")
                         if slot not in allow_unregistered:
                             raise_unregistered = True
                         unregistered_slots += 1
             slot_num += 1
-            
+
         if unregistered_slots == 6:
             raise RuntimeError("No modules have been registered with Yukon. At least one module needs to be registered to enable the output")
 
@@ -253,15 +279,24 @@ class Yukon:
         if raise_unregistered:
             raise RuntimeError("Detected modules that have not been registered with Yukon, which could behave unexpectedly when connected to power. Please remove these modules or disable this warning.")
 
-    def initialise_modules(self, allow_unregistered=False, allow_undetected=False, allow_discrepencies=False):
+    def initialise_modules(self, allow_unregistered=False, allow_undetected=False, allow_discrepencies=False, debug_level=1):
         if self.is_main_output():
             raise RuntimeError("Cannot verify modules whilst the main output is active")
 
-        self.__verify_modules(allow_unregistered, allow_undetected, allow_discrepencies)
+        if debug_level >= 1:
+            print(f"Verifying modules")
+
+        self.__verify_modules(allow_unregistered, allow_undetected, allow_discrepencies, debug_level=debug_level)
+
+        if debug_level >= 1:
+            print(f"Initialising modules")
 
         for slot, module in self.__slot_assignments.items():
             if module is not None:
-                module.init(slot, self.read_slot_adc1, self.read_slot_adc2_as_temp)
+                module.init(slot, self.read_slot_adc1, self.read_slot_adc2)
+
+        if debug_level >= 1:
+            print(f"Modules successfully initialised")
 
     def is_pressed(self, switch):
         if switch is self.SWITCH_A_NAME:
@@ -324,7 +359,7 @@ class Yukon:
             if new_voltage < 0.05:
                 self.disable_main_output()
                 raise RuntimeError("No voltage detected! Make sure power is being provided to the XT-30 (yellow) connector")
-            elif new_voltage < 4.8:
+            elif new_voltage < self.VOLTAGE_LOWER_LIMIT:
                 self.disable_main_output()
                 raise RuntimeError("Voltage below minimum operating level. Turning off output")
 
@@ -391,9 +426,9 @@ class Yukon:
         sense = self.__shared_adc_voltage()
         rThermistor = sense / ((3.3 - sense) / 5100)
         ROOM_TEMP = 273.15 + 25
-        RESISTOR_ROOM_TEMP = 10000.0
+        RESISTOR_AT_ROOM_TEMP = 10000.0
         BETA = 3435
-        tKelvin = (BETA * ROOM_TEMP) / (BETA + (ROOM_TEMP * math.log(rThermistor / RESISTOR_ROOM_TEMP)))
+        tKelvin = (BETA * ROOM_TEMP) / (BETA + (ROOM_TEMP * math.log(rThermistor / RESISTOR_AT_ROOM_TEMP)))
         tCelsius = tKelvin - 273.15
 
         # https://www.allaboutcircuits.com/projects/measuring-temperature-with-an-ntc-thermistor/
@@ -411,6 +446,8 @@ class Yukon:
         self.__select_address(slot.ADC2_TEMP_ADDR)
         return self.__shared_adc_voltage()
 
+    # Moved the below onto the common YukonModule
+    """
     def read_slot_adc2_as_temp(self, slot):
         import math
         self.__select_address(slot.ADC2_TEMP_ADDR)
@@ -424,13 +461,14 @@ class Yukon:
 
         # https://www.allaboutcircuits.com/projects/measuring-temperature-with-an-ntc-thermistor/
         return tCelsius
+    """
 
-    def monitor(self):
+    def monitor(self, debug_level=0):
         self.__last_voltage = self.read_voltage()
         if self.__last_voltage > self.__voltage_limit:
             self.disable_main_output()
             raise RuntimeError(f"Yukon - Voltage of {self.__last_voltage}V exceeded the user set level of {self.__voltage_limit}V! Turning off output")
-        elif self.__last_voltage < 4.8:
+        elif self.__last_voltage < self.VOLTAGE_LOWER_LIMIT:
             self.disable_main_output()
             raise RuntimeError(f"Yukon - Voltage of {self.__last_voltage}V below minimum operating level. Turning off output")
 
@@ -447,13 +485,17 @@ class Yukon:
         slot_num = 1
         for slot, module in self.__slot_assignments.items():
             if module is not None:
-                message = module.monitor()
-                if message is not None:
+                try:
+                    message = module.monitor(debug_level=debug_level)
+                    if message is not None:
+                        print(f"[Slot {slot_num}] {message}")
+                except RuntimeError as e:
                     self.disable_main_output()
-                    raise RuntimeError(f"'{module.NAME}' module in Slot {slot_num} - {message}! Turning off output") 
+                    raise RuntimeError(f"'{module.NAME}' module in Slot {slot_num} - {str(e)}! Turning off output") from None
+
             slot_num += 1
 
-    def monitored_sleep(self, seconds):
+    def monitored_sleep(self, seconds, debug_level=0):
         if seconds < 0:
             raise ValueError("sleep length must be non-negative")
 
@@ -461,8 +503,13 @@ class Yukon:
         end_ms = supervisor.ticks_ms() + remaining_ms
 
         while remaining_ms > 0:
-            self.monitor()
+            self.monitor(debug_level=debug_level)
             remaining_ms = end_ms - supervisor.ticks_ms()
+        self.__print_last_monitored(debug_level=debug_level)
+
+    def __print_last_monitored(self, debug_level):
+        if debug_level >= 2:
+            print(f"[Yukon] V = {self.__last_voltage}V, C = {self.__last_current}A, T = {self.__last_temperature}°C")
 
     def last_voltage(self):
         return self.__last_voltage

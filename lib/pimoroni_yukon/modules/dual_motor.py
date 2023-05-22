@@ -40,10 +40,10 @@ class DualMotorModule(YukonModule):
         self.p_en.switch_to_output(False)
 
     def read_fault(self):
-        return self.read_adc1(self.slot) <= self.FAULT_THRESHOLD
+        return self.__read_adc1() <= self.FAULT_THRESHOLD
 
     def read_temperature(self):
-        return self.read_adc2(self.slot)
+        return self.__read_adc2()
 
     def init(self, slot, adc1_func, adc2_func):
         super().init(slot, adc1_func, adc2_func)
@@ -65,10 +65,10 @@ class DualMotorModule(YukonModule):
 
     def monitor(self):
         if self.read_fault():
-            return f"Fault detected on motor driver"
+            raise RuntimeError(f"Fault detected on motor driver")
 
         temp = self.read_temperature()
         if temp > self.TEMPERATURE_THRESHOLD:
-            return f"Temperature of {temp}°C exceeded the user set level of {self.TEMPERATURE_THRESHOLD}°C"
+            raise RuntimeError(f"Temperature of {temp}°C exceeded the user set level of {self.TEMPERATURE_THRESHOLD}°C")
 
         return None
