@@ -11,6 +11,12 @@ class LEDStripModule(YukonModule):
     DOTSTAR = 1
     TEMPERATURE_THRESHOLD = 50.0
 
+    # | ADC1  | SLOW1 | SLOW2 | SLOW3 | Module               | Condition (if any)          |
+    # |-------|-------|-------|-------|----------------------|-----------------------------|
+    # | LOW   | 1     | 1     | 1     | LED Strip            |                             |
+    def is_module(adc_level, slow1, slow2, slow3):
+        return adc_level == ADC_LOW and slow1 is HIGH and slow2 is HIGH and slow3 is HIGH
+
     def __init__(self, strip_type, num_pixels, brightness=1.0, halt_on_not_pgood=True):
         super().__init__()
         self.strip_type = strip_type
@@ -24,12 +30,6 @@ class LEDStripModule(YukonModule):
         self.halt_on_not_pgood = halt_on_not_pgood
         self.__last_pgood = False
         self.__last_temp = 0
-
-    def is_module(adc_level, slow1, slow2, slow3):
-        if adc_level == ADC_LOW and slow1 is HIGH and slow2 is HIGH and slow3 is HIGH:
-            return True
-
-        return False
 
     def enable(self):
         self.p_en.value = True

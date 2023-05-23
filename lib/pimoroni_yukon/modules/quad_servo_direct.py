@@ -8,15 +8,17 @@ class QuadServoDirectModule(YukonModule):
     NAME = "Quad Servo Direct"
     NUM_SERVOS = 4
 
+    # | ADC1  | SLOW1 | SLOW2 | SLOW3 | Module               | Condition (if any)          |
+    # |-------|-------|-------|-------|----------------------|-----------------------------|
+    # | LOW   | 0     | 0     | 0     | Quad Servo Direct    | A1 input near 0V            |
+    # | FLOAT | 0     | 0     | 0     | Quad Servo Direct    | A1 input between 0 and 3.3V |
+    # | HIGH  | 0     | 0     | 0     | Quad Servo Direct    | A1 input near 3.3V          |
+    def is_module(adc_level, slow1, slow2, slow3):
+        # Old address 001, will be changed to 000
+        return slow1 is LOW and slow2 is LOW and slow3 is HIGH
+
     def __init__(self):
         super().__init__()
-
-    def is_module(adc_level, slow1, slow2, slow3):
-        # ADC is wired to a user pin, so all 3 states are valid
-        if slow1 is LOW and slow2 is LOW and slow3 is HIGH: # Old address 001, will be changed to 000
-            return True
-
-        return False
 
     def reset(self):
         for servo in self.servos:

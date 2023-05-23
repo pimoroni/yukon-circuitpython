@@ -5,18 +5,21 @@
 from digitalio import DigitalInOut
 from .common import *
 
+
+
 class QuadServoRegModule(YukonModule):
     NAME = "Quad Servo Regulated"
     NUM_SERVOS = 4
 
+    # | ADC1  | SLOW1 | SLOW2 | SLOW3 | Module               | Condition (if any)          |
+    # |-------|-------|-------|-------|----------------------|-----------------------------|
+    # | FLOAT | 0     | 1     | 0     | Quad Servo Regulated |                             |
+    def is_module(adc_level, slow1, slow2, slow3):
+        return adc_level == ADC_FLOAT and slow1 is LOW and slow2 is HIGH and slow3 is LOW
+
     def __init__(self):
         super().__init__()
         pass
-
-    def is_module(adc_level, slow1, slow2, slow3):
-        if adc_level == ADC_FLOAT and slow1 is LOW and slow2 is HIGH and slow3 is LOW:
-            return True
-        return False
 
     def enable(self):
         self.p_en.value = True

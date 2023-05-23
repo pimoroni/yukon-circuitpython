@@ -7,16 +7,17 @@ from .common import *
 class ProtoPotModule(YukonModule):
     NAME = "Proto Potentiometer"
 
+    # | ADC1  | SLOW1 | SLOW2 | SLOW3 | Module               | Condition (if any)          |
+    # |-------|-------|-------|-------|----------------------|-----------------------------|
+    # | LOW   | 1     | 1     | 0     | Proto Potentiometer  | Pot in low position         |
+    # | FLOAT | 1     | 1     | 0     | Proto Potentiometer  | Pot in middle position      |
+    # | HIGH  | 1     | 1     | 0     | Proto Potentiometer  | Pot in high position        |
+    def is_module(adc_level, slow1, slow2, slow3):
+        return slow1 is HIGH and slow2 is HIGH and slow3 is LOW
+
     def __init__(self):
         super().__init__()
         pass
-
-    def is_module(adc_level, slow1, slow2, slow3):
-        # TODO This is incorrect
-        if slow1 is HIGH and slow2 is HIGH and slow3 is LOW:
-            return True
-
-        return False
 
     def read(self):
         return self.__read_adc1() / 3.3
@@ -25,6 +26,14 @@ class ProtoPotModule(YukonModule):
 class ProtoPotModule2(YukonModule):
     NAME = "Proto Potentiometer 2"
     PULLUP = 5100
+
+    # | ADC1  | SLOW1 | SLOW2 | SLOW3 | Module               | Condition (if any)          |
+    # |-------|-------|-------|-------|----------------------|-----------------------------|
+    # | LOW   | 1     | 1     | 0     | Proto Potentiometer  | Pot in low position         |
+    # | FLOAT | 1     | 1     | 0     | Proto Potentiometer  | Pot in middle position      |
+    # | HIGH  | 1     | 1     | 0     | Proto Potentiometer  | Pot in high position        |
+    def is_module(adc_level, slow1, slow2, slow3):
+        return slow1 is HIGH and slow2 is HIGH and slow3 is LOW
 
     # ADC2 has a pull-up connected to simplify its use with modules that feature an onboard thermistor.
     # Unfortunately, when connecting up a potentiometer, creating the below circuit, this has the
@@ -64,7 +73,6 @@ class ProtoPotModule2(YukonModule):
     #
     # This can be simplified by normalising the resistor values, by R, giving:
     # https://www.symbolab.com/solver/equation-calculator/o%20%3D%20r%20%2F%20%5Cleft(%201%2F%20%5Cleft(1%2F%5Cleft(1-r%5Cright)%2B1%2F0.51%5Cright)%20%2B%20r%5Cright)?or=input
-
     def __init__(self, pot_resistance):
         super().__init__()
 
@@ -76,13 +84,6 @@ class ProtoPotModule2(YukonModule):
         self.const_a = (4 * pu) + 1
         self.const_b = (6 * pu) + 2
         self.const_c = (pu ** 2) + (2 * pu) + 1
-
-    def is_module(adc_level, slow1, slow2, slow3):
-        # TODO This is incorrect
-        if slow1 is HIGH and slow2 is HIGH and slow3 is LOW:
-            return True
-
-        return False
 
     def read(self):
         from math import sqrt

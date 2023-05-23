@@ -11,7 +11,6 @@ ADC_ANY = 3
 LOW = False
 HIGH = True
 
-
 class YukonModule:
     NAME = "Unnamed"
 
@@ -19,13 +18,13 @@ class YukonModule:
     RESISTOR_AT_ROOM_TEMP = 10000.0
     BETA = 3435
 
+    def is_module(adc_level, slow1, slow2, slow3):
+        return False
+
     def __init__(self):
         self.slot = None
         self.__adc1_func = None
         self.__adc2_func = None
-
-    def is_module(adc_level, slow1, slow2, slow3):
-        return False
 
     def init(self, slot, adc1_func, adc2_func):
         self.slot = slot

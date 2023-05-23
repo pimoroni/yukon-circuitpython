@@ -22,12 +22,13 @@ class BenchPowerModule(YukonModule):
         super().__init__()
         pass
 
+    # | ADC1  | SLOW1 | SLOW2 | SLOW3 | Module               | Condition (if any)          |
+    # |-------|-------|-------|-------|----------------------|-----------------------------|
+    # | LOW   | 1     | 0     | 0     | Bench Power          |                             |
+    # | FLOAT | 1     | 0     | 0     | Bench Power          | When V+ is discharging      |
+    # FLOAT address included as may not be able to rely on the ADC level being low
     def is_module(adc_level, slow1, slow2, slow3):
-        # May not be able to rely on the ADC level being low to detect this module
-        if adc_level == ADC_LOW and slow1 is HIGH and slow2 is LOW and slow3 is LOW:
-            return True
-
-        return False
+        return slow1 is HIGH and slow2 is LOW and slow3 is LOW
 
     def enable(self):
         self.p_en.value = True

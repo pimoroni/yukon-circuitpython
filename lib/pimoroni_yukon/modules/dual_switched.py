@@ -9,15 +9,15 @@ class DualSwitchedModule(YukonModule):
     NAME = "Dual Switched Output"
     NUM_SWITCHES = 2
 
+    # | ADC1  | SLOW1 | SLOW2 | SLOW3 | Module               | Condition (if any)          |
+    # |-------|-------|-------|-------|----------------------|-----------------------------|
+    # | FLOAT | 1     | 0     | 1     | Dual Switched Output |                             |
+    def is_module(adc_level, slow1, slow2, slow3):
+        return adc_level == ADC_FLOAT and slow1 is HIGH and slow2 is LOW and slow3 is HIGH
+
     def __init__(self):
         super().__init__()
         pass
-
-    def is_module(adc_level, slow1, slow2, slow3):
-        if adc_level == ADC_FLOAT and slow1 is HIGH and slow2 is LOW and slow3 is HIGH:
-            return True
-
-        return False
 
     def enable(self, switch=None):
         if switch is not None:

@@ -15,15 +15,15 @@ class DualMotorModule(YukonModule):
     DEFAULT_FREQUENCY = 25000
     TEMPERATURE_THRESHOLD = 50.0
 
+    # | ADC1  | SLOW1 | SLOW2 | SLOW3 | Module               | Condition (if any)          |
+    # |-------|-------|-------|-------|----------------------|-----------------------------|
+    # | HIGH  | 1     | 1     | 1     | Dual Motor           |                             |
+    def is_module(adc_level, slow1, slow2, slow3):
+        return adc_level == ADC_HIGH and slow1 is HIGH and slow2 is HIGH and slow3 is HIGH
+
     def __init__(self, frequency=DEFAULT_FREQUENCY):
         super().__init__()
         self.frequency = frequency
-
-    def is_module(adc_level, slow1, slow2, slow3):
-        if adc_level == ADC_HIGH and slow1 is HIGH and slow2 is HIGH and slow3 is HIGH:
-            return True
-
-        return False
 
     def enable(self):
         self.p_en.value = True

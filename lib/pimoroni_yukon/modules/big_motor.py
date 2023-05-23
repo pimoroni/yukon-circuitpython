@@ -14,15 +14,16 @@ class BigMotorModule(YukonModule):
     SHUNT_RESISTOR = 0.001
     GAIN = 80
 
+    # | ADC1  | SLOW1 | SLOW2 | SLOW3 | Module               | Condition (if any)          |
+    # |-------|-------|-------|-------|----------------------|-----------------------------|
+    # | LOW   | 0     | 0     | 1     | Big Motor            | Not in fault                |
+    # | LOW   | 0     | 1     | 1     | Big Motor            | In fault                    |
+    def is_module(adc_level, slow1, slow2, slow3):
+        return adc_level == ADC_LOW and slow1 is LOW and slow3 is HIGH
+
     def __init__(self, frequency=DEFAULT_FREQUENCY):
         super().__init__()
         self.frequency = frequency
-
-    def is_module(adc_level, slow1, slow2, slow3):
-        if adc_level == ADC_LOW and slow1 is LOW and slow3 is HIGH:
-            return True
-
-        return False
 
     def enable(self):
         self.p_en.value = True
