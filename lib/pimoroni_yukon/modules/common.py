@@ -34,6 +34,9 @@ class YukonModule:
     def monitor(self, debug_level=0):
         return None
 
+    def last_monitored(self):
+        return OrderedDict()
+
     def __read_adc1(self):
         return self.__adc1_func(self.slot)
 

@@ -4,6 +4,7 @@
 
 from digitalio import DigitalInOut, Pull
 from .common import *
+from collections import OrderedDict
 
 class LEDStripModule(YukonModule):
     NAME = "LED Strip"
@@ -21,9 +22,9 @@ class LEDStripModule(YukonModule):
         super().__init__()
         self.strip_type = strip_type
         if self.strip_type == self.NEOPIXEL:
-            self.NAME += " [NeoPixel]"
+            self.NAME += " (NeoPixel)"
         else:
-            self.NAME += " [DotStar]"
+            self.NAME += " (DotStar)"
 
         self.num_pixels = num_pixels
         self.brightness = brightness
@@ -78,13 +79,14 @@ class LEDStripModule(YukonModule):
                 message = f"Power is not good"
             elif self.__last_pgood is not True and pgood is True:
                 message = f"Power is good"
-        self.__last_pgood = pgood
 
-        if debug_level >= 3:
-            log = f"PGood = {pgood}, Temp = {temp}°C"
-            if message is not None:
-                message += log
-            else:
-                message = log
+        self.__last_pgood = pgood
+        self.__last_temp = temp
 
         return message
+
+    def last_monitored(self):
+        return OrderedDict({
+            "PGood": self.__last_pgood,
+            "T": self.__last_temp
+        })
