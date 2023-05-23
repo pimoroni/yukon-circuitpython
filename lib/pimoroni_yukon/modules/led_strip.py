@@ -18,50 +18,55 @@ class LEDStripModule(YukonModule):
     def is_module(adc_level, slow1, slow2, slow3):
         return adc_level == ADC_LOW and slow1 is HIGH and slow2 is HIGH and slow3 is HIGH
 
-    def __init__(self, strip_type, num_pixels, brightness=1.0, halt_on_not_pgood=True):
+    def __init__(self, strip_type, num_pixels, brightness=1.0, halt_on_not_pgood=False):
         super().__init__()
-        self.strip_type = strip_type
-        if self.strip_type == self.NEOPIXEL:
+        self.__strip_type = strip_type
+        if self.__strip_type == self.NEOPIXEL:
             self.NAME += " (NeoPixel)"
         else:
             self.NAME += " (DotStar)"
 
-        self.num_pixels = num_pixels
-        self.brightness = brightness
+        self.__num_pixels = num_pixels
+        self.__brightness = brightness
         self.halt_on_not_pgood = halt_on_not_pgood
+
         self.__last_pgood = False
         self.__last_temp = 0
 
-    def enable(self):
-        self.p_en.value = True
+    def setup(self, slot, adc1_func, adc2_func):
+        super().setup(slot, adc1_func, adc2_func)
 
-    def disable(self):
-        self.p_en.value = False
+        if self.__strip_type == self.NEOPIXEL:
+            from neopixel import NeoPixel
+            self.pixels = NeoPixel(slot.FAST4, self.__num_pixels, brightness=self.__brightness, auto_write=False)
+        else:
+            from adafruit_dotstar import DotStar
+            self.pixels = DotStar(slot.FAST3, slot.FAST4, self.__num_pixels, brightness=self.__brightness, auto_write=False)
+
+        self.__power_good = DigitalInOut(slot.FAST1)
+        self.__power_en = DigitalInOut(slot.FAST2)
+
+        self.reset()
 
     def reset(self):
-        self.p_en.switch_to_output(False)
-        self.p_good.switch_to_input(Pull.UP)
+        if self.slot is not None:
+            self.__power_en.switch_to_output(False)
+            self.__power_good.switch_to_input(Pull.UP)
+
+    def enable(self):
+        self.__power_en.value = True
+
+    def disable(self):
+        self.__power_en.value = False
+
+    def is_enabled(self):
+        return self.__power_en.value
 
     def read_power_good(self):
-        return self.p_good.value
+        return self.__power_good.value
 
     def read_temperature(self):
         return self.__read_adc2_as_temp()
-
-    def init(self, slot, adc1_func, adc2_func):
-        super().init(slot, adc1_func, adc2_func)
-
-        if self.strip_type == self.NEOPIXEL:
-            from neopixel import NeoPixel
-            self.pixels = NeoPixel(slot.FAST4, self.num_pixels, brightness=self.brightness, auto_write=False)
-        else:
-            from adafruit_dotstar import DotStar
-            self.pixels = DotStar(slot.FAST3, slot.FAST4, self.num_pixels, brightness=self.brightness, auto_write=False)
-
-        self.p_good = DigitalInOut(slot.FAST1)
-        self.p_en = DigitalInOut(slot.FAST2)
-
-        self.reset()
 
     def monitor(self, debug_level=0):
         pgood = self.read_power_good()

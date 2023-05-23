@@ -26,16 +26,13 @@ class YukonModule:
         self.__adc1_func = None
         self.__adc2_func = None
 
-    def init(self, slot, adc1_func, adc2_func):
+    def setup(self, slot, adc1_func, adc2_func):
         self.slot = slot
         self.__adc1_func = adc1_func
         self.__adc2_func = adc2_func
 
-    def monitor(self, debug_level=0):
-        return None
-
-    def last_monitored(self):
-        return OrderedDict()
+    def reset(self):
+        pass
 
     def __read_adc1(self):
         return self.__adc1_func(self.slot)
@@ -50,3 +47,9 @@ class YukonModule:
         t_celsius = t_kelvin - 273.15
         # https://www.allaboutcircuits.com/projects/measuring-temperature-with-an-ntc-thermistor/
         return t_celsius
+
+    def monitor(self, debug_level=0):
+        return None
+
+    def last_monitored(self):
+        return OrderedDict()

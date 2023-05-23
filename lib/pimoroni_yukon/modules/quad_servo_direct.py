@@ -3,6 +3,8 @@
 # SPDX-License-Identifier: MIT
 
 from .common import *
+from pwmio import PWMOut
+from adafruit_motor.servo import Servo
 
 class QuadServoDirectModule(YukonModule):
     NAME = "Quad Servo Direct"
@@ -20,23 +22,27 @@ class QuadServoDirectModule(YukonModule):
     def __init__(self):
         super().__init__()
 
-    def reset(self):
-        for servo in self.servos:
-           servo.angle = None
-
-    def init(self, slot, adc1_func, adc2_func):
-        super().init(slot, adc1_func, adc2_func)
-
-        from pwmio import PWMOut
-        from adafruit_motor.servo import Servo
+    def setup(self, slot, adc1_func, adc2_func):
+        super().setup(slot, adc1_func, adc2_func)
 
         # Create a PWMOut objects
-        self.pwms = [PWMOut(slot.FAST1, frequency=50),
-                     PWMOut(slot.FAST2, frequency=50),
-                     PWMOut(slot.FAST3, frequency=50),
-                     PWMOut(slot.FAST4, frequency=50)]
+        self.__pwms = [PWMOut(slot.FAST1, frequency=50),
+                       PWMOut(slot.FAST2, frequency=50),
+                       PWMOut(slot.FAST3, frequency=50),
+                       PWMOut(slot.FAST4, frequency=50)]
 
         # Create a servo objects
-        self.servos = [Servo(self.pwms[i]) for i in range(len(self.pwms))]
+        self.servos = [Servo(self.__pwms[i]) for i in range(len(self.__pwms))]
 
         self.reset()
+
+    def reset(self):
+        if self.slot is not None:
+            for servo in self.servos:
+                servo.angle = None
+
+    def read_adc1(self):
+        return self.__read_adc1()
+
+    def read_adc2(self):
+        return self.__read_adc2()

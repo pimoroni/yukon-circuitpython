@@ -293,7 +293,7 @@ class Yukon:
 
         for slot, module in self.__slot_assignments.items():
             if module is not None:
-                module.init(slot, self.read_slot_adc1, self.read_slot_adc2)
+                module.setup(slot, self.read_slot_adc1, self.read_slot_adc2)
 
         if debug_level >= 1:
             print(f"> Modules successfully initialised")
@@ -548,8 +548,4 @@ class Yukon:
 
         for slot, module in self.__slot_assignments.items():
             if module is not None:
-                try:
-                    module.reset()
-                except AttributeError:
-                    # No reset function
-                    pass
+                module.reset()

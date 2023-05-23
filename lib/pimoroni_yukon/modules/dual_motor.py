@@ -23,52 +23,81 @@ class DualMotorModule(YukonModule):
 
     def __init__(self, frequency=DEFAULT_FREQUENCY):
         super().__init__()
-        self.frequency = frequency
+        self.__frequency = frequency
 
-    def enable(self):
-        self.p_en.value = True
+        self.__last_fault = False
+        self.__last_temp = 0
 
-    def disable(self):
-        self.p_en.value = False
+    def setup(self, slot, adc1_func, adc2_func):
+        super().setup(slot, adc1_func, adc2_func)
+
+        # Create PWMOut objects
+        self.__pwms_p = [PWMOut(slot.FAST2, frequency=self.__frequency),
+                         PWMOut(slot.FAST4, frequency=self.__frequency)]
+        self.__pwms_n = [PWMOut(slot.FAST1, frequency=self.__frequency),
+                         PWMOut(slot.FAST3, frequency=self.__frequency)]
+
+        # Create motor objects
+        self.motors = [DCMotor(self.__pwms_p[i], self.__pwms_n[i]) for i in range(len(self.__pwms_p))]
+
+        self.__motors_decay = DigitalInOut(slot.SLOW1)
+        self.__motors_toff = DigitalInOut(slot.SLOW2)
+        self.__motors_en = DigitalInOut(slot.SLOW3)
+
+        self.reset()
 
     def reset(self):
-        for motor in self.motors:
-           motor.throttle = None
+        if self.slot is not None:
+            for motor in self.motors:
+                motor.throttle = None
 
-        self.p_decay.switch_to_output(False)
-        self.p_toff.switch_to_output(False)
-        self.p_en.switch_to_output(False)
+            self.__motors_decay.switch_to_output(False)
+            self.__motors_toff.switch_to_output(False)
+            self.__motors_en.switch_to_output(False)
+
+    def enable(self):
+        self.__motors_en.value = True
+
+    def disable(self):
+        self.__motors_en.value = False
+
+    def is_enabled(self):
+        return self.__motors_en.value
+
+    def decay(self, value=None):
+        if value is None:
+            return self.__motors_decay
+        else:
+            self.__motors_decay = value
+
+    def toff(self, value=None):
+        if value is None:
+            return self.__motors_toff
+        else:
+            self.__motors_toff = value
 
     def read_fault(self):
         return self.__read_adc1() <= self.FAULT_THRESHOLD
 
     def read_temperature(self):
-        return self.__read_adc2()
-
-    def init(self, slot, adc1_func, adc2_func):
-        super().init(slot, adc1_func, adc2_func)
-
-        # Create PWMOut objects
-        self.pwms_p = [PWMOut(slot.FAST2, frequency=self.frequency),
-                       PWMOut(slot.FAST4, frequency=self.frequency)]
-        self.pwms_n = [PWMOut(slot.FAST1, frequency=self.frequency),
-                       PWMOut(slot.FAST3, frequency=self.frequency)]
-
-        # Create motor objects
-        self.motors = [DCMotor(self.pwms_p[i], self.pwms_n[i]) for i in range(len(self.pwms_p))]
-
-        self.p_decay = DigitalInOut(slot.SLOW1)
-        self.p_toff = DigitalInOut(slot.SLOW2)
-        self.p_en = DigitalInOut(slot.SLOW3)
-
-        self.reset()
+        return self.__read_adc2_as_temp()
 
     def monitor(self):
-        if self.read_fault():
+        fault = self.read_fault()
+        if fault is True:
             raise RuntimeError(f"Fault detected on motor driver")
 
         temp = self.read_temperature()
         if temp > self.TEMPERATURE_THRESHOLD:
             raise RuntimeError(f"Temperature of {temp}°C exceeded the user set level of {self.TEMPERATURE_THRESHOLD}°C")
 
+        self.__last_fault = fault
+        self.__last_temp = temp
+
         return None
+
+    def last_monitored(self):
+        return OrderedDict({
+            "Fault": self.__last_fault,
+            "T": self.__last_temp
+        })
