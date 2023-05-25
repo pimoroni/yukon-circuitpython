@@ -4,6 +4,7 @@
 
 from digitalio import DigitalInOut
 from .common import *
+from collections import OrderedDict
 from pwmio import PWMOut
 from adafruit_motor.servo import Servo
 
@@ -25,6 +26,8 @@ class QuadServoRegModule(YukonModule):
 
         self.__last_pgood = False
         self.__last_temp = 0
+        
+        self.__initialised = False
 
     def setup(self, slot, adc1_func, adc2_func):
         super().setup(slot, adc1_func, adc2_func)
@@ -41,10 +44,11 @@ class QuadServoRegModule(YukonModule):
         self.__power_en = DigitalInOut(slot.SLOW1)
         self.__power_good = DigitalInOut(slot.SLOW2)
 
+        self.__initialised = True
         self.reset()
 
     def reset(self):
-        if self.slot is not None:
+        if self.slot is not None and self.__initialised:
             for servo in self.servos:
                 servo.angle = None
 

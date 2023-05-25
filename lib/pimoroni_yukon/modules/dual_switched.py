@@ -4,6 +4,7 @@
 
 from digitalio import DigitalInOut
 from .common import *
+from collections import OrderedDict
 
 class DualSwitchedModule(YukonModule):
     NAME = "Dual Switched Output"

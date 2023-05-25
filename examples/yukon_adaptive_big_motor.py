@@ -28,7 +28,6 @@ try:
 
     # Turn on the module power
     yukon.enable_main_output()
-    print("Output Enabled")
 
     # Enable the outputs on the regulated servo modules
     for module in motor_modules:
@@ -54,4 +53,3 @@ try:
 finally:
     # Put the board back into a safe state, regardless of how the program may have ended
     yukon.reset()
-    print("Output Disabled")

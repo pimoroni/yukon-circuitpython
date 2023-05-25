@@ -5,6 +5,7 @@
 from digitalio import DigitalInOut
 from pwmio import PWMOut
 from .common import *
+from collections import OrderedDict
 
 class BenchPowerModule(YukonModule):
     NAME = "Bench Power"
@@ -92,7 +93,7 @@ class BenchPowerModule(YukonModule):
     def read_temperature(self):
         return self.__read_adc2_as_temp()
 
-    def monitor(self):
+    def monitor(self, debug_level=0):
         pgood = self.read_power_good()
         if pgood is not True:
             if self.halt_on_not_pgood:

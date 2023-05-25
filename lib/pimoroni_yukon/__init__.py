@@ -33,11 +33,12 @@ class Yukon:
 
     DEFAULT_VOLTAGE_LIMIT = 17.2
     VOLTAGE_LOWER_LIMIT = 4.8
-    DEFAULT_CURRENT_LIMIT = 15
+    DEFAULT_CURRENT_LIMIT = 20
     DEFAULT_TEMPERATURE_LIMIT = 90
+    ABSOLUTE_MAX_VOLTAGE_LIMIT = 18
 
     def __init__(self, voltage_limit=DEFAULT_VOLTAGE_LIMIT, current_limit=DEFAULT_CURRENT_LIMIT, temperature_limit=DEFAULT_TEMPERATURE_LIMIT):
-        self.__voltage_limit = voltage_limit
+        self.__voltage_limit = min(voltage_limit, self.ABSOLUTE_MAX_VOLTAGE_LIMIT)
         self.__current_limit = current_limit
         self.__temperature_limit = temperature_limit
 
@@ -97,6 +98,10 @@ class Yukon:
 
         # Shared analog input
         self.__shared_adc = analogio.AnalogIn(board.SHARED_ADC)
+
+        self.__last_voltage = 0
+        self.__last_current = 0
+        self.__last_temperature = 0
 
     def __check_slot(self, slot):
         if type(slot) is int:
@@ -321,7 +326,7 @@ class Yukon:
 
         self.__leds[switch].value = value
 
-    def enable_main_output(self):
+    def enable_main_output(self, debug_level=1):
         if self.is_main_output() is False:
             import time
             start = time.monotonic_ns()
@@ -334,10 +339,12 @@ class Yukon:
             dur = 100 * 1000 * 1000
             dur_b = 5 * 1000 * 1000
 
+            if debug_level >= 1:
+                print("> Enabling Output")
             self.__enable_main_output()
             while True:
                 new_voltage = ((self.__shared_adc_voltage() - self.VOLTAGE_MIN_MEASURE) * self.VOLTAGE_MAX) / (self.VOLTAGE_MAX_MEASURE - self.VOLTAGE_MIN_MEASURE)
-                if new_voltage > 18:
+                if new_voltage > self.ABSOLUTE_MAX_VOLTAGE_LIMIT:
                     self.disable_main_output()
                     raise RuntimeError("[Yukon] Voltage exceeded user safe level! Turning off output")
 
@@ -363,11 +370,16 @@ class Yukon:
                 self.disable_main_output()
                 raise RuntimeError("[Yukon] Voltage below minimum operating level. Turning off output")
 
+            if debug_level >= 1:
+                print("> Output Enabled")
+
     def __enable_main_output(self):
         self.__main_en.value = True
 
-    def disable_main_output(self):
+    def disable_main_output(self, debug_level=1):
         self.__main_en.value = False
+        if debug_level >= 1:
+            print("> Output Disabled")
 
     def is_main_output(self):
         return self.__main_en.value
@@ -447,23 +459,23 @@ class Yukon:
         return self.__shared_adc_voltage()
 
     def monitor(self, debug_level=0):
-        self.__last_voltage = self.read_voltage()
-        if self.__last_voltage > self.__voltage_limit:
+        voltage = self.read_voltage()
+        if voltage > self.__voltage_limit:
             self.disable_main_output()
-            raise RuntimeError(f"[Yukon] Voltage of {self.__last_voltage}V exceeded the user set level of {self.__voltage_limit}V! Turning off output")
-        elif self.__last_voltage < self.VOLTAGE_LOWER_LIMIT:
+            raise RuntimeError(f"[Yukon] Voltage of {voltage}V exceeded the user set level of {self.__voltage_limit}V! Turning off output")
+        elif voltage < self.VOLTAGE_LOWER_LIMIT:
             self.disable_main_output()
-            raise RuntimeError(f"[Yukon] Voltage of {self.__last_voltage}V below minimum operating level. Turning off output")
+            raise RuntimeError(f"[Yukon] Voltage of {voltage}V below minimum operating level. Turning off output")
 
-        self.__last_current = self.read_current()
-        if self.__last_current > self.__current_limit:
+        current = self.read_current()
+        if current > self.__current_limit:
             self.disable_main_output()
-            raise RuntimeError(f"[Yukon] Current of {self.__last_current}A exceeded the user set level of {self.__current_limit}A! Turning off output")
+            raise RuntimeError(f"[Yukon] Current of {current}A exceeded the user set level of {self.__current_limit}A! Turning off output")
 
-        self.__last_temperature = self.read_temperature()
-        if self.__last_temperature > self.__temperature_limit:
+        temperature = self.read_temperature()
+        if temperature > self.__temperature_limit:
             self.disable_main_output()
-            raise RuntimeError(f"[Yukon] Temperature of {self.__last_temperature}°C exceeded the user set level of {self.__temperature_limit}°C! Turning off output")
+            raise RuntimeError(f"[Yukon] Temperature of {temperature}°C exceeded the user set level of {self.__temperature_limit}°C! Turning off output")
 
         slot_num = 1
         for slot, module in self.__slot_assignments.items():
@@ -477,6 +489,10 @@ class Yukon:
                     raise RuntimeError(f"[Slot{slot_num} '{module.NAME}'] {str(e)}! Turning off output") from None
 
             slot_num += 1
+
+        self.__last_voltage = voltage
+        self.__last_current = current
+        self.__last_temperature = temperature
 
     def monitored_sleep(self, seconds, debug_level=0):
         if seconds < 0:
@@ -531,7 +547,10 @@ class Yukon:
         self.__lcd_bl.value = value
 
     def reset(self):
-        self.disable_main_output()
+        # Only disable the output if enabled (avoids duplicate messages)
+        if self.is_main_output() is True:
+            self.disable_main_output()
+
         self.__adc_mux_ens[0].value = False
         self.__adc_mux_ens[1].value = False
 

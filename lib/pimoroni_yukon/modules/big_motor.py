@@ -3,15 +3,16 @@
 # SPDX-License-Identifier: MIT
 
 from .common import *
+from collections import OrderedDict
 from digitalio import DigitalInOut
 from pwmio import PWMOut
-from adafruit_motor.motor import DCMotor
+from adafruit_motor.motor import DCMotor, SLOW_DECAY
 
 class BigMotorModule(YukonModule):
     NAME = "Big Motor + Encoder"
     DEFAULT_FREQUENCY = 25000
     TEMPERATURE_THRESHOLD = 50.0
-    CURRENT_THRESHOLD = 10.0
+    CURRENT_THRESHOLD = 25.0
     SHUNT_RESISTOR = 0.001
     GAIN = 80
 
@@ -39,6 +40,7 @@ class BigMotorModule(YukonModule):
 
         # Create motor objects
         self.motor = DCMotor(self.__pwm_p, self.__pwm_n)
+        self.motor.decay_mode = SLOW_DECAY
 
         self.__motor_en = DigitalInOut(slot.SLOW3)
         self.__motor_nfault = DigitalInOut(slot.SLOW2)
@@ -71,7 +73,7 @@ class BigMotorModule(YukonModule):
     def read_temperature(self):
         return self.__read_adc2_as_temp()
 
-    def monitor(self):
+    def monitor(self, debug_level=0):
         fault = self.read_fault()
         if fault is True:
             raise RuntimeError(f"Fault detected on motor driver")
