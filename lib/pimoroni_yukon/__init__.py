@@ -283,6 +283,9 @@ class Yukon:
         if raise_unregistered:
             raise RuntimeError("Detected modules that have not been registered with Yukon, which could behave unexpectedly when connected to power. Please remove these modules or disable this warning.")
 
+        if debug_level >= 1:
+            print()
+
     def initialise_modules(self, allow_unregistered=False, allow_undetected=False, allow_discrepencies=False, debug_level=1):
         if self.is_main_output():
             raise RuntimeError("Cannot verify modules whilst the main output is active")
@@ -295,12 +298,18 @@ class Yukon:
         if debug_level >= 1:
             print(f"> Initialising modules")
 
+        slot_num = 1
         for slot, module in self.__slot_assignments.items():
             if module is not None:
+                if debug_level >= 1:
+                    print(f"[Slot{slot_num} '{module.NAME}'] Initialising ... ", end="")
                 module.initialise(slot, self.read_slot_adc1, self.read_slot_adc2)
+                if debug_level >= 1:
+                    print(f"done")
+            slot_num += 1
 
         if debug_level >= 1:
-            print(f"> Modules successfully initialised")
+            print()
 
     def is_pressed(self, switch):
         if switch is self.SWITCH_A_NAME:
@@ -339,7 +348,7 @@ class Yukon:
             dur_b = 5 * 1000 * 1000
 
             if debug_level >= 1:
-                print("> Enabling Output")
+                print("> Enabling output ...")
             self.__enable_main_output()
             while True:
                 new_voltage = ((self.__shared_adc_voltage() - self.VOLTAGE_MIN_MEASURE) * self.VOLTAGE_MAX) / (self.VOLTAGE_MAX_MEASURE - self.VOLTAGE_MIN_MEASURE)
@@ -370,7 +379,7 @@ class Yukon:
                 raise RuntimeError("[Yukon] Voltage below minimum operating level. Turning off output")
 
             if debug_level >= 1:
-                print("> Output Enabled")
+                print("> Output enabled")
 
     def __enable_main_output(self):
         self.__main_en.value = True
@@ -378,7 +387,7 @@ class Yukon:
     def disable_main_output(self, debug_level=1):
         self.__main_en.value = False
         if debug_level >= 1:
-            print("> Output Disabled")
+            print("> Output disabled")
 
     def is_main_output(self):
         return self.__main_en.value

@@ -119,7 +119,7 @@ class BenchPowerModule(YukonModule):
         self.__last_voltage = self.read_voltage()
         self.__last_temp = temp
 
-        return None
+        return message
 
     def last_monitored(self):
         return OrderedDict({

@@ -16,7 +16,7 @@ try:
     yukon.register_with_slot(pot, SLOT+1)
 
     # Initialise Yukon's registered modules
-    yukon.initialise_modules(allow_unregistered=True, allow_undetected=True)
+    yukon.initialise_modules(allow_unregistered=True)
 
     # Turn on the module power
     yukon.enable_main_output()

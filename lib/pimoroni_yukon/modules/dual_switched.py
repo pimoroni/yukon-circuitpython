@@ -71,20 +71,23 @@ class DualSwitchedModule(YukonModule):
 
         return self.__sw_enable[switch - 1].value
 
-    def output(self, switch, value=None):
+    def output(self, switch, value):
         if switch < 1 or switch > self.NUM_SWITCHES:
             raise ValueError("switch index out of range. Expected 1 to 2")
 
-        if value is None:
-            return self.__sw_output[switch - 1].value
-        else:
-            self.__sw_output[switch - 1].value = value
+        self.__sw_output[switch - 1].value = value
+
+    def read_output(self, switch):
+        if switch < 1 or switch > self.NUM_SWITCHES:
+            raise ValueError("switch index out of range. Expected 1 to 2")
+
+        return self.__sw_output[switch - 1].value
 
     def read_power_good(self, switch):
         if switch < 1 or switch > self.NUM_SWITCHES:
             raise ValueError("switch index out of range. Expected 1 to 2")
 
-        return self.__power_good.value
+        return self.__power_good[switch - 1].value
 
     def read_temperature(self):
         return self.__read_adc2_as_temp()

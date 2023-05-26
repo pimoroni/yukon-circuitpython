@@ -22,10 +22,10 @@ try:
 
     # Turn on the module power
     yukon.enable_main_output()
-    print("Output Enabled")
 
     # Enable the switched outputs
-    switches.enable()
+    switches.enable(1)
+    switches.enable(2)
 
     offset = 0
     sw_a_state = False
@@ -63,4 +63,3 @@ try:
 finally:
     # Put the board back into a safe state, regardless of how the program may have ended
     yukon.reset()
-    print("Output Disabled")

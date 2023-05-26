@@ -3,6 +3,7 @@
 # SPDX-License-Identifier: MIT
 
 import math
+from collections import OrderedDict
 
 ADC_LOW = 0
 ADC_HIGH = 1
