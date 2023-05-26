@@ -2,6 +2,7 @@
 #
 # SPDX-License-Identifier: MIT
 
+import time
 import math
 import board
 import digitalio
@@ -33,9 +34,14 @@ class Yukon:
 
     DEFAULT_VOLTAGE_LIMIT = 17.2
     VOLTAGE_LOWER_LIMIT = 4.8
+    VOLTAGE_ZERO_LEVEL = 0.05
     DEFAULT_CURRENT_LIMIT = 20
     DEFAULT_TEMPERATURE_LIMIT = 90
     ABSOLUTE_MAX_VOLTAGE_LIMIT = 18
+
+    DETECTION_SAMPLES = 64
+    DETECTION_ADC_LOW = 0.1
+    DETECTION_ADC_HIGH = 3.2
 
     def __init__(self, voltage_limit=DEFAULT_VOLTAGE_LIMIT, current_limit=DEFAULT_CURRENT_LIMIT, temperature_limit=DEFAULT_TEMPERATURE_LIMIT):
         self.__voltage_limit = min(voltage_limit, self.ABSOLUTE_MAX_VOLTAGE_LIMIT)
@@ -99,7 +105,7 @@ class Yukon:
         # Shared analog input
         self.__shared_adc = analogio.AnalogIn(board.SHARED_ADC)
 
-        self.__reset_monitored()
+        self.__clear_readings()
 
     def __check_slot(self, slot):
         if type(slot) is int:
@@ -179,17 +185,17 @@ class Yukon:
 
         self.__select_address(slot.ADC1_ADDR)
         adc_val = 0
-        for i in range(64):
+        for i in range(self.DETECTION_SAMPLES):
             adc_val += self.__shared_adc_voltage()
-        adc_val /= 64
+        adc_val /= self.DETECTION_SAMPLES
 
         if debug_level >= 2:
             print(f"ADC1 = {adc_val}, SLOW1 = {int(slow1.value)}, SLOW2 = {int(slow2.value)}, SLOW3 = {int(slow3.value)}", end=", ")
 
         adc_level = ADC_FLOAT
-        if adc_val <= 0.1:
+        if adc_val <= self.DETECTION_ADC_LOW:
             adc_level = ADC_LOW
-        elif adc_val >= 3.1:
+        elif adc_val >= self.DETECTION_ADC_HIGH:
             adc_level = ADC_HIGH
 
         detected = self.__match_module(adc_level, slow1.value, slow2.value, slow3.value)
@@ -224,7 +230,7 @@ class Yukon:
 
         return [self.__check_slot(slot_list)]
 
-    def __verify_modules(self, allow_unregistered=False, allow_undetected=False, allow_discrepencies=False, allow_no_modules=False, debug_level=1):
+    def __verify_modules(self, allow_unregistered, allow_undetected, allow_discrepencies, allow_no_modules, debug_level):
         # Take the allowed parameters and expand them into slot lists that are easier to compare against
         allow_unregistered = self.__expand_slot_list(allow_unregistered)
         allow_undetected = self.__expand_slot_list(allow_undetected)
@@ -334,7 +340,6 @@ class Yukon:
 
     def enable_main_output(self, debug_level=1):
         if self.is_main_output() is False:
-            import time
             start = time.monotonic_ns()
 
             self.__select_address(board.VOLTAGE_SENSE_ADDR)
@@ -369,7 +374,7 @@ class Yukon:
 
                 old_voltage = new_voltage
 
-            if new_voltage < 0.05:
+            if new_voltage < self.VOLTAGE_ZERO_LEVEL:
                 self.disable_main_output()
                 raise RuntimeError("[Yukon] No voltage detected! Make sure power is being provided to the XT-30 (yellow) connector")
             elif new_voltage < self.VOLTAGE_LOWER_LIMIT:
@@ -431,30 +436,26 @@ class Yukon:
 
     def read_voltage(self):
         self.__select_address(board.VOLTAGE_SENSE_ADDR)
-        # return (self.__shared_adc_voltage() * (100 + 16)) / 16
+        # return (self.__shared_adc_voltage() * (100 + 16)) / 16  # Old equation, kept for reference
         return max(((self.__shared_adc_voltage() - self.VOLTAGE_MIN_MEASURE) * self.VOLTAGE_MAX) / (self.VOLTAGE_MAX_MEASURE - self.VOLTAGE_MIN_MEASURE), 0.0)
 
     def read_current(self):
         self.__select_address(board.CURRENT_SENSE_ADDR)
-        #return (self.__shared_adc_voltage() - 0.015) / ((1 + (5100 / 27.4)) * 0.0005)
+        # return (self.__shared_adc_voltage() - 0.015) / ((1 + (5100 / 27.4)) * 0.0005)  # Old equation, kept for reference
         return max(((self.__shared_adc_voltage() - self.CURRENT_MIN_MEASURE) * self.CURRENT_MAX) / (self.CURRENT_MAX_MEASURE - self.CURRENT_MIN_MEASURE), 0.0)
-    
-        # Code for returning comparison between the equation and calibrated value
-        # volt = self.__shared_adc_voltage()
-        # return max(((volt - self.CURRENT_MIN_MEASURE) * self.CURRENT_MAX) / (self.CURRENT_MAX_MEASURE - self.CURRENT_MIN_MEASURE), 0.0), (volt - 0.015) / ((1 + (5100 / 27.4)) * 0.0005)
 
     def read_temperature(self):
         self.__select_address(board.TEMP_SENSE_ADDR)
         sense = self.__shared_adc_voltage()
-        rThermistor = sense / ((3.3 - sense) / 5100)
+        r_thermistor = sense / ((3.3 - sense) / 5100)
         ROOM_TEMP = 273.15 + 25
         RESISTOR_AT_ROOM_TEMP = 10000.0
         BETA = 3435
-        tKelvin = (BETA * ROOM_TEMP) / (BETA + (ROOM_TEMP * math.log(rThermistor / RESISTOR_AT_ROOM_TEMP)))
-        tCelsius = tKelvin - 273.15
+        t_kelvin = (BETA * ROOM_TEMP) / (BETA + (ROOM_TEMP * math.log(r_thermistor / RESISTOR_AT_ROOM_TEMP)))
+        t_celsius = t_kelvin - 273.15
 
         # https://www.allaboutcircuits.com/projects/measuring-temperature-with-an-ntc-thermistor/
-        return tCelsius
+        return t_celsius
 
     def read_expansion(self):
         self.__select_address(board.EX_ADC_ADDR)
@@ -497,41 +498,27 @@ class Yukon:
                 except RuntimeError as e:
                     self.disable_main_output()
                     raise RuntimeError(f"[Slot{slot_num} '{module.NAME}'] {str(e)}! Turning off output") from None
-
             slot_num += 1
 
-        self.__max_mon_voltage = max(voltage, self.__max_mon_voltage)
-        self.__max_mon_current = max(current, self.__max_mon_current)
-        self.__max_mon_temperature = max(temperature, self.__max_mon_temperature)
+        self.__max_voltage = max(voltage, self.__max_voltage)
+        self.__min_voltage = min(voltage, self.__min_voltage)
+        self.__avg_voltage += voltage
 
-        self.__min_mon_voltage = min(voltage, self.__min_mon_voltage)
-        self.__min_mon_current = min(current, self.__min_mon_current)
-        self.__min_mon_temperature = min(temperature, self.__min_mon_temperature)
+        self.__max_current = max(current, self.__max_current)
+        self.__min_current = min(current, self.__min_current)
+        self.__avg_current += current
 
-        self.__avg_mon_voltage += voltage
-        self.__avg_mon_current += current
-        self.__avg_mon_temperature += temperature
+        self.__max_temperature = max(temperature, self.__max_temperature)
+        self.__min_temperature = min(temperature, self.__min_temperature)
+        self.__avg_temperature += temperature
+
         self.__count_avg += 1
-
-    def __reset_monitored(self):
-        self.__max_mon_voltage = float('-inf')
-        self.__max_mon_current = float('-inf')
-        self.__max_mon_temperature = float('-inf')
-
-        self.__min_mon_voltage = float('inf')
-        self.__min_mon_current = float('inf')
-        self.__min_mon_temperature = float('inf')
-
-        self.__avg_mon_voltage = 0
-        self.__avg_mon_current = 0
-        self.__avg_mon_temperature = 0
-        self.__count_avg = 0
 
     def monitored_sleep(self, seconds, debug_level=0):
         if seconds < 0:
             raise ValueError("sleep length must be non-negative")
 
-        self.__reset_monitored()
+        self.clear_readings()
 
         remaining_ms = int(1000.0 * seconds + 0.5)
         end_ms = supervisor.ticks_ms() + remaining_ms
@@ -543,40 +530,67 @@ class Yukon:
             #print(ticks_diff)
             remaining_ms = end_ms - supervisor.ticks_ms()
 
-        if self.__count_avg > 0:
-            self.__avg_mon_voltage /= self.__count_avg
-            self.__avg_mon_current /= self.__count_avg
-            self.__avg_mon_temperature /= self.__count_avg
+        self.__process_readings()
 
         if debug_level >= 2:
-            self.__print_last_monitored()
+            self.__print_readings()
 
     # TODO
     # def monitor_until(self, time, debug_level=0)
 
-    def __print_last_monitored(self):
-        self.__print_dict(f"[Yukon]", self.last_monitored())
+    def __print_readings(self):
+        self.__print_dict(f"[Yukon]", self.get_readings())
 
         slot_num = 1
         for slot, module in self.__slot_assignments.items():
             if module is not None:
-                self.__print_dict(f"[Slot{slot_num}]", module.last_monitored())
+                self.__print_dict(f"[Slot{slot_num}]", module.get_readings())
             slot_num += 1
         print()
 
-    def last_monitored(self):
-        reading =  OrderedDict({
-            "V_avg": self.__avg_mon_voltage,
-            "V_max": self.__max_mon_voltage,
-            "V_min": self.__min_mon_voltage,
-            "C_avg": self.__avg_mon_current,
-            "C_max": self.__max_mon_current,
-            "C_min": self.__min_mon_current,
-            "T_avg": self.__avg_mon_temperature,
-            "T_max": self.__max_mon_temperature,
-            "T_min": self.__min_mon_temperature
+    def get_readings(self):
+        return OrderedDict({
+            "V_max": self.__max_voltage,
+            "V_min": self.__min_voltage,
+            "V_avg": self.__avg_voltage,
+            "C_max": self.__max_current,
+            "C_min": self.__min_current,
+            "C_avg": self.__avg_current,
+            "T_max": self.__max_temperature,
+            "T_min": self.__min_temperature,
+            "T_avg": self.__avg_temperature
         })
-        return reading
+
+    def process_readings(self):
+        if self.__count_avg > 0:
+            self.__avg_voltage /= self.__count_avg
+            self.__avg_current /= self.__count_avg
+            self.__avg_temperature /= self.__count_avg
+
+        for slot, module in self.__slot_assignments.items():
+            if module is not None:
+                module.process_readings()
+
+    def __clear_readings(self):
+        self.__max_voltage = float('-inf')
+        self.__min_voltage = float('inf')
+        self.__avg_voltage = 0
+
+        self.__max_current = float('-inf')
+        self.__min_current = float('inf')
+        self.__avg_current = 0
+
+        self.__max_temperature = float('-inf')
+        self.__min_temperature = float('inf')
+        self.__avg_temperature = 0
+
+        self.__count_avg = 0
+
+    def clear_readings(self):
+        self.__clear_readings()
+        for slot, module in self.__slot_assignments.items():
+            if module is not None:
+                module.clear_readings()
 
     def __print_dict(self, section_name, readings):
         if len(readings) > 0:
@@ -586,7 +600,6 @@ class Yukon:
                     print(f"{name} = {int(value)},", end=" ")
                 else:
                     print(f"{name} = {value},", end=" ")
-
 
     def lcd_dc(self, value):
         self.__lcd_dc.value = value

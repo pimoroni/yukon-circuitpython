@@ -115,15 +115,45 @@ class BenchPowerModule(YukonModule):
             elif self.__last_pgood is not True and pgood is True:
                 message = f"Power is good"
 
+        voltage_out = self.read_voltage()
+
         self.__last_pgood = pgood
-        self.__last_voltage = self.read_voltage()
-        self.__last_temp = temp
+
+        self.__max_voltage_out = max(voltage_out, self.__max_voltage_out)
+        self.__min_voltage_out = min(voltage_out, self.__min_voltage_out)
+        self.__avg_voltage_out += voltage_out
+
+        self.__max_temperature = max(temperature, self.__max_temperature)
+        self.__min_temperature = min(temperature, self.__min_temperature)
+        self.__avg_temperature += temperature
+
+        self.__count_avg += 1
 
         return message
 
-    def last_monitored(self):
+    def get_readings(self):
         return OrderedDict({
             "PGood": self.__last_pgood,
-            "VOut": self.__last_voltage,
-            "T": self.__last_temp
+            "VO_max": self.__max_voltage_out,
+            "VO_min": self.__min_voltage_out,
+            "VO_avg": self.__avg_voltage_out,
+            "T_max": self.__max_temperature,
+            "T_min": self.__min_temperature,
+            "T_avg": self.__avg_temperature
         })
+
+    def process_readings(self):
+        if self.__count_avg > 0:
+            self.__avg_voltage_out /= self.__count_avg
+            self.__avg_temperature /= self.__count_avg
+
+    def clear_readings(self):
+        self.__max_voltage_out = float('-inf')
+        self.__min_voltage_out = float('inf')
+        self.__avg_voltage_out = 0
+
+        self.__max_temperature = float('-inf')
+        self.__min_temperature = float('inf')
+        self.__avg_temperature = 0
+
+        self.__count_avg = 0

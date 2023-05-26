@@ -28,6 +28,8 @@ class YukonModule:
         self.__adc1_func = None
         self.__adc2_func = None
 
+        self.clear_readings()
+
     def initialise(self, slot, adc1_func, adc2_func):
         # Record the slot we are in, and the ADC functions to call
         self.slot = slot
@@ -63,5 +65,13 @@ class YukonModule:
     def monitor(self, debug_level=0):
         return None
 
-    def last_monitored(self):
+    def get_readings(self):
         return OrderedDict()
+
+    def process_readings(self):
+        # Use this to calculate averages, or do other post-processing on readings after monitor
+        pass
+
+    def clear_readings(self):
+        # Clear any readings that may accumulate, such as min, max, or average
+        pass

@@ -29,8 +29,6 @@ class BigMotorModule(YukonModule):
         self.__frequency = frequency
 
         self.__last_fault = False
-        self.__last_current = 0
-        self.__last_temp = 0
 
     def initialise(self, slot, adc1_func, adc2_func):
         # Create pwm objects
@@ -90,14 +88,42 @@ class BigMotorModule(YukonModule):
             raise RuntimeError(f"Temperature of {temp}°C exceeded the user set level of {self.TEMPERATURE_THRESHOLD}°C")
 
         self.__last_fault = fault
-        self.__last_current = current
-        self.__last_temp = temp
+
+        self.__max_current = max(current, self.__max_current)
+        self.__min_current = min(current, self.__min_current)
+        self.__avg_current += current
+
+        self.__max_temperature = max(temperature, self.__max_temperature)
+        self.__min_temperature = min(temperature, self.__min_temperature)
+        self.__avg_temperature += temperature
+
+        self.__count_avg += 1
 
         return None
 
-    def last_monitored(self):
+    def get_readings(self):
         return OrderedDict({
             "Fault": self.__last_fault,
-            "C": self.__last_current,
-            "T": self.__last_temp
+            "C_max": self.__max_current,
+            "C_min": self.__min_current,
+            "C_avg": self.__avg_current,
+            "T_max": self.__max_temperature,
+            "T_min": self.__min_temperature,
+            "T_avg": self.__avg_temperature
         })
+
+    def process_readings(self):
+        if self.__count_avg > 0:
+            self.__avg_current /= self.__count_avg
+            self.__avg_temperature /= self.__count_avg
+
+    def clear_readings(self):
+        self.__max_current = float('-inf')
+        self.__min_current = float('inf')
+        self.__avg_current = 0
+
+        self.__max_temperature = float('-inf')
+        self.__min_temperature = float('inf')
+        self.__avg_temperature = 0
+
+        self.__count_avg = 0
