@@ -2,10 +2,11 @@
 #
 # SPDX-License-Identifier: MIT
 
-from digitalio import DigitalInOut
-from pwmio import PWMOut
 from .common import *
+from pwmio import PWMOut
+from digitalio import DigitalInOut
 from collections import OrderedDict
+
 
 class BenchPowerModule(YukonModule):
     NAME = "Bench Power"
@@ -38,21 +39,25 @@ class BenchPowerModule(YukonModule):
         self.__last_voltage = 0
         self.__last_temp = 0
 
-    def setup(self, slot, adc1_func, adc2_func):
-        super().setup(slot, adc1_func, adc2_func)
-
+    def initialise(self, slot, adc1_func, adc2_func):
+        # Create the voltage pwm object
         self.voltage_pwm = PWMOut(slot.FAST2, duty_cycle=0, frequency=250000)
 
+        # Create the power control pin objects
         self.__power_en = DigitalInOut(slot.FAST1)
         self.__power_good = DigitalInOut(slot.SLOW1)
 
-        self.reset()
+        # Configure the voltage and power pins
+        self.configure()
 
-    def reset(self):
-        if self.slot is not None:
-            self.voltage_pwm.duty_cycle = 0
-            self.__power_en.switch_to_output(False)
-            self.__power_good.switch_to_input()
+        # Pass the slot and adc functions up to the parent now that module specific initialisation has finished
+        super().initialise(slot, adc1_func, adc2_func)
+
+    def configure(self):
+        self.voltage_pwm.duty_cycle = 0
+
+        self.__power_en.switch_to_output(False)
+        self.__power_good.switch_to_input()
 
     def enable(self):
         self.__power_en.value = True

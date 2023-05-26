@@ -6,6 +6,7 @@ from .common import *
 from pwmio import PWMOut
 from adafruit_motor.servo import Servo
 
+
 class QuadServoDirectModule(YukonModule):
     NAME = "Quad Servo Direct"
     NUM_SERVOS = 4
@@ -23,27 +24,25 @@ class QuadServoDirectModule(YukonModule):
         super().__init__()
         self.__initialised = False
 
-    def setup(self, slot, adc1_func, adc2_func):
-        super().setup(slot, adc1_func, adc2_func)
-
-        # Create a PWMOut objects
+    def initialise(self, slot, adc1_func, adc2_func):
+        # Create pwm objects
         self.__pwms = [PWMOut(slot.FAST1, frequency=50),
                        PWMOut(slot.FAST2, frequency=50),
                        PWMOut(slot.FAST3, frequency=50),
                        PWMOut(slot.FAST4, frequency=50)]
-        
-        print(self.__pwms)
 
-        # Create a servo objects
+        # Create servo objects
         self.servos = [Servo(self.__pwms[i]) for i in range(len(self.__pwms))]
 
-        self.__initialised = True
-        self.reset()
+        # Configure servos
+        self.configure()
 
-    def reset(self):
-        if self.slot is not None and self.__initialised:
-            for servo in self.servos:
-                servo.angle = None
+        # Pass the slot and adc functions up to the parent now that module specific initialisation has finished
+        super().initialise(slot, adc1_func, adc2_func)
+
+    def configure(self):
+        for servo in self.servos:
+            servo.angle = None
 
     def read_adc1(self):
         return self.__read_adc1()

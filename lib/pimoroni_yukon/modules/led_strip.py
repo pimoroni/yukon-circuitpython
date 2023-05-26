@@ -2,9 +2,10 @@
 #
 # SPDX-License-Identifier: MIT
 
-from digitalio import DigitalInOut, Pull
 from .common import *
+from digitalio import DigitalInOut, Pull
 from collections import OrderedDict
+
 
 class LEDStripModule(YukonModule):
     NAME = "LED Strip"
@@ -33,9 +34,8 @@ class LEDStripModule(YukonModule):
         self.__last_pgood = False
         self.__last_temp = 0
 
-    def setup(self, slot, adc1_func, adc2_func):
-        super().setup(slot, adc1_func, adc2_func)
-
+    def initialise(self, slot, adc1_func, adc2_func):
+        # Create the strip driver object
         if self.__strip_type == self.NEOPIXEL:
             from neopixel import NeoPixel
             self.pixels = NeoPixel(slot.FAST4, self.__num_pixels, brightness=self.__brightness, auto_write=False)
@@ -43,15 +43,19 @@ class LEDStripModule(YukonModule):
             from adafruit_dotstar import DotStar
             self.pixels = DotStar(slot.FAST3, slot.FAST4, self.__num_pixels, brightness=self.__brightness, auto_write=False)
 
+        # Create the power control pin objects
         self.__power_good = DigitalInOut(slot.FAST1)
         self.__power_en = DigitalInOut(slot.FAST2)
 
-        self.reset()
+        # Configure strip and power pins
+        self.configure()
 
-    def reset(self):
-        if self.slot is not None:
-            self.__power_en.switch_to_output(False)
-            self.__power_good.switch_to_input(Pull.UP)
+        # Pass the slot and adc functions up to the parent now that module specific initialisation has finished
+        super().initialise(slot, adc1_func, adc2_func)
+
+    def configure(self):
+        self.__power_en.switch_to_output(False)
+        self.__power_good.switch_to_input(Pull.UP)
 
     def enable(self):
         self.__power_en.value = True

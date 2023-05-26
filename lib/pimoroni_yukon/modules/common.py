@@ -11,6 +11,7 @@ ADC_ANY = 3
 LOW = False
 HIGH = True
 
+
 class YukonModule:
     NAME = "Unnamed"
 
@@ -26,12 +27,22 @@ class YukonModule:
         self.__adc1_func = None
         self.__adc2_func = None
 
-    def setup(self, slot, adc1_func, adc2_func):
+    def initialise(self, slot, adc1_func, adc2_func):
+        # Record the slot we are in, and the ADC functions to call
         self.slot = slot
         self.__adc1_func = adc1_func
         self.__adc2_func = adc2_func
 
-    def reset(self):
+    def is_initialised(self):
+        return self.slot is not None
+
+    def deregister(self):
+        self.slot = None
+        self.__adc1_func = None
+        self.__adc2_func = None
+
+    def configure(self):
+        # Function for (re)configuring pins etc to their default states needed by the module
         pass
 
     def __read_adc1(self):

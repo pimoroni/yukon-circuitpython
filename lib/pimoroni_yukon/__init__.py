@@ -149,7 +149,6 @@ class Yukon:
 
         if self.__slot_assignments[slot] is None:
             self.__slot_assignments[slot] = module
-            # module.__slot = slot
         else:
             raise RuntimeError("The selected slot is already populated")
 
@@ -161,7 +160,7 @@ class Yukon:
 
         module = self.__slot_assignments[slot]
         if module is not None:
-            # module.__slot == None
+            module.deregister()
             self.__slot_assignments[slot] = None
 
     def __match_module(self, adc_level, slow1, slow2, slow3):
@@ -298,7 +297,7 @@ class Yukon:
 
         for slot, module in self.__slot_assignments.items():
             if module is not None:
-                module.setup(slot, self.read_slot_adc1, self.read_slot_adc2)
+                module.initialise(slot, self.read_slot_adc1, self.read_slot_adc2)
 
         if debug_level >= 1:
             print(f"> Modules successfully initialised")
@@ -565,6 +564,7 @@ class Yukon:
         self.__lcd_cs.value = False
         self.__lcd_dc.value = False
 
+        # Configure each module so they go back to their default states
         for slot, module in self.__slot_assignments.items():
-            if module is not None:
-                module.reset()
+            if module is not None and module.is_initialised():
+                module.configure()

@@ -2,11 +2,11 @@
 #
 # SPDX-License-Identifier: MIT
 
-from digitalio import DigitalInOut
 from .common import *
-from collections import OrderedDict
 from pwmio import PWMOut
+from digitalio import DigitalInOut
 from adafruit_motor.servo import Servo
+from collections import OrderedDict
 
 
 class QuadServoRegModule(YukonModule):
@@ -26,13 +26,9 @@ class QuadServoRegModule(YukonModule):
 
         self.__last_pgood = False
         self.__last_temp = 0
-        
-        self.__initialised = False
 
-    def setup(self, slot, adc1_func, adc2_func):
-        super().setup(slot, adc1_func, adc2_func)
-
-        # Create PWMOut objects
+    def initialise(self, slot, adc1_func, adc2_func):
+        # Create pwm objects
         self.__pwms = [PWMOut(slot.FAST1, frequency=50),
                        PWMOut(slot.FAST2, frequency=50),
                        PWMOut(slot.FAST3, frequency=50),
@@ -41,19 +37,22 @@ class QuadServoRegModule(YukonModule):
         # Create servo objects
         self.servos = [Servo(self.__pwms[i]) for i in range(len(self.__pwms))]
 
+        # Create the power control pin objects
         self.__power_en = DigitalInOut(slot.SLOW1)
         self.__power_good = DigitalInOut(slot.SLOW2)
 
-        self.__initialised = True
-        self.reset()
+        # Configure servos and power pins
+        self.configure()
 
-    def reset(self):
-        if self.slot is not None and self.__initialised:
-            for servo in self.servos:
-                servo.angle = None
+        # Pass the slot and adc functions up to the parent now that module specific initialisation has finished
+        super().initialise(slot, adc1_func, adc2_func)
 
-            self.__power_en.switch_to_output(False)
-            self.__power_good.switch_to_input()
+    def configure(self):
+        for servo in self.servos:
+            servo.angle = None
+
+        self.__power_en.switch_to_output(False)
+        self.__power_good.switch_to_input()
 
     def enable(self):
         self.__power_en.value = True

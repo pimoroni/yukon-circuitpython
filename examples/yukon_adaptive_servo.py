@@ -28,7 +28,7 @@ try:
             
     # Initialise Yukon's registered modules
     yukon.initialise_modules(allow_unregistered=True)
-    
+
     NUM_SERVOS = len(servo_modules) * QuadServoDirectModule.NUM_SERVOS
     print(f"Up to {NUM_SERVOS} servos available")
 

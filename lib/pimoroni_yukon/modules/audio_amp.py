@@ -4,6 +4,7 @@
 
 from .common import *
 
+
 class AudioAmpModule(YukonModule):
     NAME = "Audio Amp"
 

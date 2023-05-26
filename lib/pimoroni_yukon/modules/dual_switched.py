@@ -2,9 +2,10 @@
 #
 # SPDX-License-Identifier: MIT
 
-from digitalio import DigitalInOut
 from .common import *
+from digitalio import DigitalInOut
 from collections import OrderedDict
+
 
 class DualSwitchedModule(YukonModule):
     NAME = "Dual Switched Output"
@@ -25,9 +26,8 @@ class DualSwitchedModule(YukonModule):
         self.__last_pgood2 = False
         self.__last_temp = 0
 
-    def setup(self, slot, adc1_func, adc2_func):
-        super().setup(slot, adc1_func, adc2_func)
-
+    def initialise(self, slot, adc1_func, adc2_func):
+        # Create the switch and power control pin objects
         self.__sw_output = (DigitalInOut(slot.FAST1),
                             DigitalInOut(slot.FAST3))
 
@@ -37,18 +37,21 @@ class DualSwitchedModule(YukonModule):
         self.__power_good = (DigitalInOut(slot.SLOW1),
                              DigitalInOut(slot.SLOW3))
 
-        self.reset()
+        # Configure switch and power pins
+        self.configure()
 
-    def reset(self):
-        if self.slot is not None:
-            self.__sw_output[0].switch_to_output(False)
-            self.__sw_output[1].switch_to_output(False)
+        # Pass the slot and adc functions up to the parent now that module specific initialisation has finished
+        super().initialise(slot, adc1_func, adc2_func)
 
-            self.__sw_enable[0].switch_to_output(False)
-            self.__sw_enable[1].switch_to_output(False)
+    def configure(self):
+        self.__sw_output[0].switch_to_output(False)
+        self.__sw_output[1].switch_to_output(False)
 
-            self.__power_good[0].switch_to_input()
-            self.__power_good[1].switch_to_input()
+        self.__sw_enable[0].switch_to_output(False)
+        self.__sw_enable[1].switch_to_output(False)
+
+        self.__power_good[0].switch_to_input()
+        self.__power_good[1].switch_to_input()
 
     def enable(self, switch):
         if switch < 1 or switch > self.NUM_SWITCHES:

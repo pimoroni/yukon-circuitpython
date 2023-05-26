@@ -3,10 +3,10 @@
 # SPDX-License-Identifier: MIT
 
 from .common import *
-from collections import OrderedDict
-from digitalio import DigitalInOut
 from pwmio import PWMOut
+from digitalio import DigitalInOut
 from adafruit_motor.motor import DCMotor
+from collections import OrderedDict
 
 
 class DualMotorModule(YukonModule):
@@ -29,10 +29,10 @@ class DualMotorModule(YukonModule):
         self.__last_fault = False
         self.__last_temp = 0
 
-    def setup(self, slot, adc1_func, adc2_func):
-        super().setup(slot, adc1_func, adc2_func)
+    def initialise(self, slot, adc1_func, adc2_func):
+        super().initialise(slot, adc1_func, adc2_func)
 
-        # Create PWMOut objects
+        # Create pwm objects
         self.__pwms_p = [PWMOut(slot.FAST2, frequency=self.__frequency),
                          PWMOut(slot.FAST4, frequency=self.__frequency)]
         self.__pwms_n = [PWMOut(slot.FAST1, frequency=self.__frequency),
@@ -41,20 +41,24 @@ class DualMotorModule(YukonModule):
         # Create motor objects
         self.motors = [DCMotor(self.__pwms_p[i], self.__pwms_n[i]) for i in range(len(self.__pwms_p))]
 
+        # Create motor control pin objects
         self.__motors_decay = DigitalInOut(slot.SLOW1)
         self.__motors_toff = DigitalInOut(slot.SLOW2)
         self.__motors_en = DigitalInOut(slot.SLOW3)
 
-        self.reset()
+        # Configure motors
+        self.configure()
 
-    def reset(self):
-        if self.slot is not None:
-            for motor in self.motors:
-                motor.throttle = None
+        # Pass the slot and adc functions up to the parent now that module specific initialisation has finished
+        super().initialise(slot, adc1_func, adc2_func)
 
-            self.__motors_decay.switch_to_output(False)
-            self.__motors_toff.switch_to_output(False)
-            self.__motors_en.switch_to_output(False)
+    def configure(self):
+        for motor in self.motors:
+            motor.throttle = None
+
+        self.__motors_decay.switch_to_output(False)
+        self.__motors_toff.switch_to_output(False)
+        self.__motors_en.switch_to_output(False)
 
     def enable(self):
         self.__motors_en.value = True

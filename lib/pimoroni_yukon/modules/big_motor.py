@@ -3,10 +3,11 @@
 # SPDX-License-Identifier: MIT
 
 from .common import *
-from collections import OrderedDict
-from digitalio import DigitalInOut
 from pwmio import PWMOut
+from digitalio import DigitalInOut
 from adafruit_motor.motor import DCMotor, SLOW_DECAY
+from collections import OrderedDict
+
 
 class BigMotorModule(YukonModule):
     NAME = "Big Motor + Encoder"
@@ -31,28 +32,30 @@ class BigMotorModule(YukonModule):
         self.__last_current = 0
         self.__last_temp = 0
 
-    def setup(self, slot, adc1_func, adc2_func):
-        super().setup(slot, adc1_func, adc2_func)
-
-        # Create PWMOut objects
+    def initialise(self, slot, adc1_func, adc2_func):
+        # Create pwm objects
         self.__pwm_p = PWMOut(slot.FAST4, frequency=self.__frequency)
         self.__pwm_n = PWMOut(slot.FAST3, frequency=self.__frequency)
 
-        # Create motor objects
+        # Create motor object
         self.motor = DCMotor(self.__pwm_p, self.__pwm_n)
-        self.motor.decay_mode = SLOW_DECAY
 
+        # Create motor control pin objects
         self.__motor_en = DigitalInOut(slot.SLOW3)
         self.__motor_nfault = DigitalInOut(slot.SLOW2)
 
-        self.reset()
+        # Configure motor
+        self.configure()
 
-    def reset(self):
-        if self.slot is not None:
-            self.motor.throttle = None
+        # Pass the slot and adc functions up to the parent now that module specific initialisation has finished
+        super().initialise(slot, adc1_func, adc2_func)
 
-            self.__motor_nfault.switch_to_input()
-            self.__motor_en.switch_to_output(False)
+    def configure(self):
+        self.motor.throttle = None
+        self.motor.decay_mode = SLOW_DECAY
+
+        self.__motor_nfault.switch_to_input()
+        self.__motor_en.switch_to_output(False)
 
     def enable(self):
         self.__motor_en.value = True
