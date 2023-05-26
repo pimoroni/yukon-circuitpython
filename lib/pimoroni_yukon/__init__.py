@@ -20,9 +20,9 @@ class Yukon:
     VOLTAGE_MIN_MEASURE = 0.030
     VOLTAGE_MAX_MEASURE = 2.294
 
-    CURRENT_MAX = 4
-    CURRENT_MIN_MEASURE = 0.0162
-    CURRENT_MAX_MEASURE = 0.2268
+    CURRENT_MAX = 10
+    CURRENT_MIN_MEASURE = 0.0147
+    CURRENT_MAX_MEASURE = 0.9307
 
     SWITCH_A = 0
     SWITCH_B = 1
@@ -99,9 +99,7 @@ class Yukon:
         # Shared analog input
         self.__shared_adc = analogio.AnalogIn(board.SHARED_ADC)
 
-        self.__last_voltage = 0
-        self.__last_current = 0
-        self.__last_temperature = 0
+        self.__reset_monitored()
 
     def __check_slot(self, slot):
         if type(slot) is int:
@@ -226,7 +224,7 @@ class Yukon:
 
         return [self.__check_slot(slot_list)]
 
-    def __verify_modules(self, allow_unregistered=False, allow_undetected=False, allow_discrepencies=False, debug_level=1):
+    def __verify_modules(self, allow_unregistered=False, allow_undetected=False, allow_discrepencies=False, allow_no_modules=False, debug_level=1):
         # Take the allowed parameters and expand them into slot lists that are easier to compare against
         allow_unregistered = self.__expand_slot_list(allow_unregistered)
         allow_undetected = self.__expand_slot_list(allow_undetected)
@@ -271,7 +269,7 @@ class Yukon:
                         unregistered_slots += 1
             slot_num += 1
 
-        if unregistered_slots == 6:
+        if not allow_no_modules and unregistered_slots == 6:
             raise RuntimeError("No modules have been registered with Yukon. At least one module needs to be registered to enable the output")
 
         if raise_discrepency:
@@ -286,14 +284,14 @@ class Yukon:
         if debug_level >= 1:
             print()
 
-    def initialise_modules(self, allow_unregistered=False, allow_undetected=False, allow_discrepencies=False, debug_level=1):
+    def initialise_modules(self, allow_unregistered=False, allow_undetected=False, allow_discrepencies=False, allow_no_modules=False, debug_level=1):
         if self.is_main_output():
             raise RuntimeError("Cannot verify modules whilst the main output is active")
 
         if debug_level >= 1:
             print(f"> Verifying modules")
 
-        self.__verify_modules(allow_unregistered, allow_undetected, allow_discrepencies, debug_level=debug_level)
+        self.__verify_modules(allow_unregistered, allow_undetected, allow_discrepencies, allow_no_modules, debug_level=debug_level)
 
         if debug_level >= 1:
             print(f"> Initialising modules")
@@ -438,8 +436,12 @@ class Yukon:
 
     def read_current(self):
         self.__select_address(board.CURRENT_SENSE_ADDR)
-        # return (self.__shared_adc_voltage() - 0.015) / ((1 + (5100 / 27.4)) * 0.0005)
+        #return (self.__shared_adc_voltage() - 0.015) / ((1 + (5100 / 27.4)) * 0.0005)
         return max(((self.__shared_adc_voltage() - self.CURRENT_MIN_MEASURE) * self.CURRENT_MAX) / (self.CURRENT_MAX_MEASURE - self.CURRENT_MIN_MEASURE), 0.0)
+    
+        # Code for returning comparison between the equation and calibrated value
+        # volt = self.__shared_adc_voltage()
+        # return max(((volt - self.CURRENT_MIN_MEASURE) * self.CURRENT_MAX) / (self.CURRENT_MAX_MEASURE - self.CURRENT_MIN_MEASURE), 0.0), (volt - 0.015) / ((1 + (5100 / 27.4)) * 0.0005)
 
     def read_temperature(self):
         self.__select_address(board.TEMP_SENSE_ADDR)
@@ -498,20 +500,54 @@ class Yukon:
 
             slot_num += 1
 
-        self.__last_voltage = voltage
-        self.__last_current = current
-        self.__last_temperature = temperature
+        self.__max_mon_voltage = max(voltage, self.__max_mon_voltage)
+        self.__max_mon_current = max(current, self.__max_mon_current)
+        self.__max_mon_temperature = max(temperature, self.__max_mon_temperature)
+
+        self.__min_mon_voltage = min(voltage, self.__min_mon_voltage)
+        self.__min_mon_current = min(current, self.__min_mon_current)
+        self.__min_mon_temperature = min(temperature, self.__min_mon_temperature)
+
+        self.__avg_mon_voltage += voltage
+        self.__avg_mon_current += current
+        self.__avg_mon_temperature += temperature
+        self.__count_avg += 1
+
+    def __reset_monitored(self):
+        self.__max_mon_voltage = float('-inf')
+        self.__max_mon_current = float('-inf')
+        self.__max_mon_temperature = float('-inf')
+
+        self.__min_mon_voltage = float('inf')
+        self.__min_mon_current = float('inf')
+        self.__min_mon_temperature = float('inf')
+
+        self.__avg_mon_voltage = 0
+        self.__avg_mon_current = 0
+        self.__avg_mon_temperature = 0
+        self.__count_avg = 0
 
     def monitored_sleep(self, seconds, debug_level=0):
         if seconds < 0:
             raise ValueError("sleep length must be non-negative")
 
+        self.__reset_monitored()
+
         remaining_ms = int(1000.0 * seconds + 0.5)
         end_ms = supervisor.ticks_ms() + remaining_ms
 
         while remaining_ms > 0:
+            #start_ticks = supervisor.ticks_ms()
             self.monitor(debug_level=debug_level)
+            #ticks_diff = supervisor.ticks_ms() - start_ticks
+            #print(ticks_diff)
             remaining_ms = end_ms - supervisor.ticks_ms()
+
+        if self.__count_avg > 0:
+            self.__avg_mon_voltage /= self.__count_avg
+            self.__avg_mon_current /= self.__count_avg
+            self.__avg_mon_temperature /= self.__count_avg
+
         if debug_level >= 2:
             self.__print_last_monitored()
 
@@ -529,11 +565,18 @@ class Yukon:
         print()
 
     def last_monitored(self):
-        return OrderedDict({
-            "V": self.__last_voltage,
-            "C": self.__last_current,
-            "T": self.__last_temperature
+        reading =  OrderedDict({
+            "V_avg": self.__avg_mon_voltage,
+            "V_max": self.__max_mon_voltage,
+            "V_min": self.__min_mon_voltage,
+            "C_avg": self.__avg_mon_current,
+            "C_max": self.__max_mon_current,
+            "C_min": self.__min_mon_current,
+            "T_avg": self.__avg_mon_temperature,
+            "T_max": self.__max_mon_temperature,
+            "T_min": self.__min_mon_temperature
         })
+        return reading
 
     def __print_dict(self, section_name, readings):
         if len(readings) > 0:
