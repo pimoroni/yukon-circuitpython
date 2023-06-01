@@ -80,6 +80,15 @@ class Yukon:
         self.__adc_mux_addrs[1].direction = digitalio.Direction.OUTPUT
         self.__adc_mux_addrs[2].direction = digitalio.Direction.OUTPUT
 
+        self.__adc_io_chip = tca.get_chip(board.ADC_ADDR_1)
+        self.__adc_io_ens_addrs = (1 << tca.get_number(board.ADC_MUX_EN_1),
+                                   1 << tca.get_number(board.ADC_MUX_EN_2))
+        self.__adc_io_adc_addrs = (1 << tca.get_number(board.ADC_ADDR_1),
+                                   1 << tca.get_number(board.ADC_ADDR_2),
+                                   1 << tca.get_number(board.ADC_ADDR_3))
+        self.__adc_io_mask = self.__adc_io_ens_addrs[0] | self.__adc_io_ens_addrs[1] | \
+                             self.__adc_io_adc_addrs[0] | self.__adc_io_adc_addrs[1] | self.__adc_io_adc_addrs[2]
+
         # User switches
         self.__switches = (digitalio.DigitalInOut(board.SW_A),
                            digitalio.DigitalInOut(board.SW_B))
@@ -407,31 +416,23 @@ class Yukon:
         elif address > 0b1111:
             raise ValueError("address is greater than number of available addresses")
         else:
-            set_list = []
-            clr_list = []
+            state = 0x0000
+
             if address & 0b0001 > 0:
-                set_list.append(board.ADC_ADDR_1)
-            else:
-                clr_list.append(board.ADC_ADDR_1)
+                state |= self.__adc_io_adc_addrs[0]
 
             if address & 0b0010 > 0:
-                set_list.append(board.ADC_ADDR_2)
-            else:
-                clr_list.append(board.ADC_ADDR_2)
+                state |= self.__adc_io_adc_addrs[1]
 
             if address & 0b0100 > 0:
-                set_list.append(board.ADC_ADDR_3)
-            else:
-                clr_list.append(board.ADC_ADDR_3)
+                state |= self.__adc_io_adc_addrs[2]
 
             if address & 0b1000 > 0:
-                clr_list.append(board.ADC_MUX_EN_2)
-                set_list.append(board.ADC_MUX_EN_1)
+                state |= self.__adc_io_ens_addrs[0]
             else:
-                clr_list.append(board.ADC_MUX_EN_1)
-                set_list.append(board.ADC_MUX_EN_2)
+                state |= self.__adc_io_ens_addrs[1]
 
-            tca.change_output(set=set_list, clear=clr_list)
+            tca.change_output_mask(self.__adc_io_chip, self.__adc_io_mask, state)
 
     def __shared_adc_voltage(self):
         return (self.__shared_adc.value * 3.3) / 65536
