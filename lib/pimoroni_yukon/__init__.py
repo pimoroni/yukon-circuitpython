@@ -381,6 +381,8 @@ class Yukon:
                 self.disable_main_output()
                 raise RuntimeError("[Yukon] Voltage below minimum operating level. Turning off output")
 
+            self.clear_readings()
+
             if debug_level >= 1:
                 print("> Output enabled")
 
@@ -518,19 +520,24 @@ class Yukon:
         if seconds < 0:
             raise ValueError("sleep length must be non-negative")
 
-        self.clear_readings()
-
+        # Calculate the time this sleep should end at
         remaining_ms = int(1000.0 * seconds + 0.5)
         end_ms = supervisor.ticks_ms() + remaining_ms
 
+        # Clear any readings from previous monitoring attempts
+        self.clear_readings()
+
+        # Ensure that at least one monitor check is performed
+        self.monitor(debug_level=debug_level)
+        remaining_ms = end_ms - supervisor.ticks_ms()
+
+        # Perform any subsequent monitors until the end time is reached
         while remaining_ms > 0:
-            #start_ticks = supervisor.ticks_ms()
             self.monitor(debug_level=debug_level)
-            #ticks_diff = supervisor.ticks_ms() - start_ticks
-            #print(ticks_diff)
             remaining_ms = end_ms - supervisor.ticks_ms()
 
-        self.__process_readings()
+        # Process any readings that need it (e.g. averages)
+        self.process_readings()
 
         if debug_level >= 2:
             self.__print_readings()
