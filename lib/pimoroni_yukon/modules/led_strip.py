@@ -89,6 +89,7 @@ class LEDStripModule(YukonModule):
                 message = f"Power is good"
 
         self.__last_pgood = pgood
+        self.__power_good_throughout = self.__power_good_throughout and pgood
 
         self.__max_temperature = max(temperature, self.__max_temperature)
         self.__min_temperature = min(temperature, self.__min_temperature)
@@ -99,7 +100,7 @@ class LEDStripModule(YukonModule):
 
     def get_readings(self):
         return OrderedDict({
-            "PGood": self.__last_pgood,
+            "PGood": self.__power_good_throughout,
             "T_max": self.__max_temperature,
             "T_min": self.__min_temperature,
             "T_avg": self.__avg_temperature
@@ -110,6 +111,7 @@ class LEDStripModule(YukonModule):
             self.__avg_temperature /= self.__count_avg
 
     def clear_readings(self):
+        self.__power_good_throughout = True
         self.__max_temperature = float('-inf')
         self.__min_temperature = float('inf')
         self.__avg_temperature = 0

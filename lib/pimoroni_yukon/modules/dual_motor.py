@@ -26,8 +26,6 @@ class DualMotorModule(YukonModule):
         super().__init__()
         self.__frequency = frequency
 
-        self.__last_fault = False
-
     def initialise(self, slot, adc1_func, adc2_func):
         super().initialise(slot, adc1_func, adc2_func)
 
@@ -95,8 +93,7 @@ class DualMotorModule(YukonModule):
         if temperature > self.TEMPERATURE_THRESHOLD:
             raise RuntimeError(f"Temperature of {temperature}°C exceeded the user set level of {self.TEMPERATURE_THRESHOLD}°C")
 
-        self.__last_fault = fault
-
+        self.__fault_triggered = self.__fault_triggered or fault
         self.__max_temperature = max(temperature, self.__max_temperature)
         self.__min_temperature = min(temperature, self.__min_temperature)
         self.__avg_temperature += temperature
@@ -106,7 +103,7 @@ class DualMotorModule(YukonModule):
 
     def get_readings(self):
         return OrderedDict({
-            "Fault": self.__last_fault,
+            "Fault": self.__fault_triggered,
             "T_max": self.__max_temperature,
             "T_min": self.__min_temperature,
             "T_avg": self.__avg_temperature,
@@ -117,6 +114,7 @@ class DualMotorModule(YukonModule):
             self.__avg_temperature /= self.__count_avg
 
     def clear_readings(self):
+        self.__fault_triggered = False
         self.__max_temperature = float('-inf')
         self.__min_temperature = float('inf')
         self.__avg_temperature = 0

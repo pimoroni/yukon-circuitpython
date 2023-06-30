@@ -127,6 +127,8 @@ class DualSwitchedModule(YukonModule):
 
         self.__last_pgood1 = pgood1
         self.__last_pgood2 = pgood2
+        self.__power_good_throughout1 = self.__power_good_throughout1 and pgood1
+        self.__power_good_throughout2 = self.__power_good_throughout2 and pgood2
 
         self.__max_temperature = max(temperature, self.__max_temperature)
         self.__min_temperature = min(temperature, self.__min_temperature)
@@ -137,8 +139,8 @@ class DualSwitchedModule(YukonModule):
 
     def get_readings(self):
         return OrderedDict({
-            "PGood1": self.__last_pgood1,
-            "PGood2": self.__last_pgood2,
+            "PGood1": self.__power_good_throughout1,
+            "PGood2": self.__power_good_throughout2,
             "T_max": self.__max_temperature,
             "T_min": self.__min_temperature,
             "T_avg": self.__avg_temperature
@@ -149,6 +151,8 @@ class DualSwitchedModule(YukonModule):
             self.__avg_temperature /= self.__count_avg
 
     def clear_readings(self):
+        self.__power_good_throughout1 = True
+        self.__power_good_throughout2 = True
         self.__max_temperature = float('-inf')
         self.__min_temperature = float('inf')
         self.__avg_temperature = 0

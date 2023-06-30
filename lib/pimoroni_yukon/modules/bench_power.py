@@ -36,8 +36,6 @@ class BenchPowerModule(YukonModule):
         self.halt_on_not_pgood = halt_on_not_pgood
 
         self.__last_pgood = False
-        self.__last_voltage = 0
-        self.__last_temp = 0
 
     def initialise(self, slot, adc1_func, adc2_func):
         # Create the voltage pwm object
@@ -118,6 +116,7 @@ class BenchPowerModule(YukonModule):
         voltage_out = self.read_voltage()
 
         self.__last_pgood = pgood
+        self.__power_good_throughout = self.__power_good_throughout and pgood
 
         self.__max_voltage_out = max(voltage_out, self.__max_voltage_out)
         self.__min_voltage_out = min(voltage_out, self.__min_voltage_out)
@@ -133,7 +132,7 @@ class BenchPowerModule(YukonModule):
 
     def get_readings(self):
         return OrderedDict({
-            "PGood": self.__last_pgood,
+            "PGood": self.__power_good_throughout,
             "VO_max": self.__max_voltage_out,
             "VO_min": self.__min_voltage_out,
             "VO_avg": self.__avg_voltage_out,
@@ -148,6 +147,7 @@ class BenchPowerModule(YukonModule):
             self.__avg_temperature /= self.__count_avg
 
     def clear_readings(self):
+        self.__power_good_throughout = True
         self.__max_voltage_out = float('-inf')
         self.__min_voltage_out = float('inf')
         self.__avg_voltage_out = 0
