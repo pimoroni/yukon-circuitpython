@@ -472,6 +472,9 @@ class Yukon:
         self.__select_address(slot.ADC2_TEMP_ADDR)
         return self.__shared_adc_voltage()
 
+    def time(self):
+        return supervisor.ticks_ms() / 1000.0
+
     def monitor(self, debug_level=0):
         voltage = self.read_voltage()
         if voltage > self.__voltage_limit:
@@ -517,7 +520,7 @@ class Yukon:
 
         self.__count_avg += 1
 
-    def monitored_sleep(self, seconds, debug_level=0):
+    def monitored_sleep(self, seconds, debug_level=0, allowed=None, excluded=None):
         if seconds < 0:
             raise ValueError("sleep length must be non-negative")
 
@@ -541,18 +544,40 @@ class Yukon:
         self.process_readings()
 
         if debug_level >= 2:
-            self.__print_readings()
+            self.__print_readings(allowed, excluded)
 
-    # TODO
-    # def monitor_until(self, time, debug_level=0)
+    def monitor_until(self, time, debug_level=0, allowed=None, excluded=None):
+        if time < 0:
+            raise ValueError("time must be non-negative")
 
-    def __print_readings(self):
-        self.__print_dict(f"[Yukon]", self.get_readings())
+        # Calculate the time this sleep should end at
+        end_ms = int(1000.0 * time)
+
+        # Clear any readings from previous monitoring attempts
+        self.clear_readings()
+
+        # Ensure that at least one monitor check is performed
+        self.monitor(debug_level=debug_level)
+        remaining_ms = end_ms - supervisor.ticks_ms()
+
+        # Perform any subsequent monitors until the end time is reached
+        while remaining_ms > 0:
+            self.monitor(debug_level=debug_level)
+            remaining_ms = end_ms - supervisor.ticks_ms()
+
+        # Process any readings that need it (e.g. averages)
+        self.process_readings()
+
+        if debug_level >= 2:
+            self.__print_readings(allowed, excluded)
+
+    def __print_readings(self, allowed=None, excluded=None):
+        self.__print_dict(f"[Yukon]", self.get_readings(), allowed, excluded)
 
         slot_num = 1
         for slot, module in self.__slot_assignments.items():
             if module is not None:
-                self.__print_dict(f"[Slot{slot_num}]", module.get_readings())
+                self.__print_dict(f"[Slot{slot_num}]", module.get_readings(), allowed, excluded)
             slot_num += 1
         print()
 
@@ -600,14 +625,15 @@ class Yukon:
             if module is not None:
                 module.clear_readings()
 
-    def __print_dict(self, section_name, readings):
+    def __print_dict(self, section_name, readings, allowed=None, excluded=None):
         if len(readings) > 0:
             print(section_name, end=" ")
             for name, value in readings.items():
-                if type(value) is bool:
-                    print(f"{name} = {int(value)},", end=" ")
-                else:
-                    print(f"{name} = {value},", end=" ")
+                if ((allowed is None) or (allowed is not None and name in allowed)) and ((excluded is None) or (excluded is not None and name not in excluded)):
+                    if type(value) is bool:
+                        print(f"{name} = {int(value)},", end=" ")  # Output 0 or 1 rather than True of False, so bools can appear on plotter charts
+                    else:
+                        print(f"{name} = {value},", end=" ")
 
     def lcd_dc(self, value):
         self.__lcd_dc.value = value
