@@ -71,7 +71,7 @@ class LEDStripModule(YukonModule):
     def read_temperature(self):
         return self.__read_adc2_as_temp()
 
-    def monitor(self, debug_level=0):
+    def monitor(self, logging_level=0):
         pgood = self.read_power_good()
         if pgood is not True:
             if self.halt_on_not_pgood:
@@ -82,7 +82,7 @@ class LEDStripModule(YukonModule):
             raise RuntimeError(f"Temperature of {temperature}°C exceeded the user set level of {self.TEMPERATURE_THRESHOLD}°C")
 
         message = None
-        if debug_level >= 1:
+        if logging_level >= 1:
             if self.__last_pgood is True and pgood is not True:
                 message = f"Power is not good"
             elif self.__last_pgood is not True and pgood is True:

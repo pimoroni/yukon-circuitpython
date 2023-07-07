@@ -62,7 +62,7 @@ class YukonModule:
         # https://www.allaboutcircuits.com/projects/measuring-temperature-with-an-ntc-thermistor/
         return t_celsius
 
-    def monitor(self, debug_level=0):
+    def monitor(self, logging_level=0):
         return None
 
     def get_readings(self):

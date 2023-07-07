@@ -248,7 +248,7 @@ class AudioAmpModule(YukonModule):
     def read_temperature(self):
         return self.__read_adc2_as_temp()
 
-    def monitor(self, debug_level=0):
+    def monitor(self, logging_level=0):
         temperature = self.read_temperature()
         if temperature > self.TEMPERATURE_THRESHOLD:
             raise RuntimeError(f"Temperature of {temperature}°C exceeded the user set level of {self.TEMPERATURE_THRESHOLD}°C")

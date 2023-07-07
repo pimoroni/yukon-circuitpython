@@ -91,7 +91,7 @@ class DualSwitchedModule(YukonModule):
     def read_temperature(self):
         return self.__read_adc2_as_temp()
 
-    def monitor(self, debug_level=0):
+    def monitor(self, logging_level=0):
         pgood1 = self.read_power_good(1)
         if pgood1 is not True:
             if self.halt_on_not_pgood:
@@ -106,7 +106,7 @@ class DualSwitchedModule(YukonModule):
             raise RuntimeError(f"Temperature of {temp}°C exceeded the user set level of {self.TEMPERATURE_THRESHOLD}°C")
 
         message = None
-        if debug_level >= 1:
+        if logging_level >= 1:
             if self.__last_pgood1 is True and pgood1 is not True:
                 message = f"Power1 is not good"
             elif self.__last_pgood1 is not True and pgood1 is True:
