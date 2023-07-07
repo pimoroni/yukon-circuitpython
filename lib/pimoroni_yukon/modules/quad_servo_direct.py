@@ -44,6 +44,22 @@ class QuadServoDirectModule(YukonModule):
         for servo in self.servos:
             servo.angle = None
 
+    @property
+    def servo1(self):
+        return self.servos[0]
+
+    @property
+    def servo2(self):
+        return self.servos[1]
+
+    @property
+    def servo3(self):
+        return self.servos[2]
+
+    @property
+    def servo4(self):
+        return self.servos[3]
+
     def read_adc1(self):
         return self.__read_adc1()
 

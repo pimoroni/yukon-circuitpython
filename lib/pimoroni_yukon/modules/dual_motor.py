@@ -78,6 +78,14 @@ class DualMotorModule(YukonModule):
         else:
             self.__motors_toff = value
 
+    @property
+    def motor1(self):
+        return self.motors[0]
+
+    @property
+    def motor2(self):
+        return self.motors[1]
+
     def read_fault(self):
         return self.__read_adc1() <= self.FAULT_THRESHOLD
 

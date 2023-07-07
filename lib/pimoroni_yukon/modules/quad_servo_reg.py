@@ -62,6 +62,22 @@ class QuadServoRegModule(YukonModule):
     def is_enabled(self):
         return self.__power_en.value
 
+    @property
+    def servo1(self):
+        return self.servos[0]
+
+    @property
+    def servo2(self):
+        return self.servos[1]
+
+    @property
+    def servo3(self):
+        return self.servos[2]
+
+    @property
+    def servo4(self):
+        return self.servos[3]
+
     def read_power_good(self):
         return self.__power_good.value
 
