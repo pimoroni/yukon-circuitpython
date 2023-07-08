@@ -253,6 +253,10 @@ class AudioAmpModule(YukonModule):
         if temperature > self.TEMPERATURE_THRESHOLD:
             raise RuntimeError(f"Temperature of {temperature}°C exceeded the user set level of {self.TEMPERATURE_THRESHOLD}°C")
 
+        # Run some user action based on the latest readings
+        if self.__monitor_action_callback is not None:
+            self.__monitor_action_callback(temperature)
+
         self.__max_temperature = max(temperature, self.__max_temperature)
         self.__min_temperature = min(temperature, self.__min_temperature)
         self.__avg_temperature += temperature

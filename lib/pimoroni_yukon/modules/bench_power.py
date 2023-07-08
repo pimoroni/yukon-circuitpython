@@ -115,6 +115,10 @@ class BenchPowerModule(YukonModule):
 
         voltage_out = self.read_voltage()
 
+        # Run some user action based on the latest readings
+        if self.__monitor_action_callback is not None:
+            self.__monitor_action_callback(pgood, temperature, voltage_out)
+
         self.__last_pgood = pgood
         self.__power_good_throughout = self.__power_good_throughout and pgood
 

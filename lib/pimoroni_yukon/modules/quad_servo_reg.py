@@ -101,6 +101,10 @@ class QuadServoRegModule(YukonModule):
             elif self.__last_pgood is not True and pgood is True:
                 message = f"Power is good"
 
+        # Run some user action based on the latest readings
+        if self.__monitor_action_callback is not None:
+            self.__monitor_action_callback(pgood, temperature)
+
         self.__last_pgood = pgood
         self.__power_good_throughout = self.__power_good_throughout and pgood
 

@@ -125,6 +125,10 @@ class DualSwitchedModule(YukonModule):
                     message += ", "
                 message += f"Power2 is good"
 
+        # Run some user action based on the latest readings
+        if self.__monitor_action_callback is not None:
+            self.__monitor_action_callback(pgood1, pgood2, temperature)
+
         self.__last_pgood1 = pgood1
         self.__last_pgood2 = pgood2
         self.__power_good_throughout1 = self.__power_good_throughout1 and pgood1

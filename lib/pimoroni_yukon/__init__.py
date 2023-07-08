@@ -21,7 +21,7 @@ class Yukon:
     VOLTAGE_MIN_MEASURE = 0.030
     VOLTAGE_MAX_MEASURE = 2.294
 
-    CURRENT_MAX = 10
+    CURRENT_MAX = 10.0
     CURRENT_MIN_MEASURE = 0.0147
     CURRENT_MAX_MEASURE = 0.9307
 
@@ -121,6 +121,8 @@ class Yukon:
         self.__shared_adc = analogio.AnalogIn(board.SHARED_ADC)
 
         self.__clear_readings()
+
+        self.__monitor_action_callback = None
 
     def log_warn(self, objects='', sep='', end='\n'):
         if self.__logging_level >= self.LOG_WARN:
@@ -473,6 +475,12 @@ class Yukon:
     def time(self):
         return supervisor.ticks_ms() / 1000.0
 
+    def assign_monitor_action(self, callback_function):
+        if not None and not callable(callback_function):
+            raise TypeError("callback is not callable or None")
+
+        self.__monitor_action_callback = callback_function
+
     def monitor(self):
         voltage = self.read_voltage()
         if voltage > self.__voltage_limit:
@@ -491,6 +499,10 @@ class Yukon:
         if temperature > self.__temperature_limit:
             self.disable_main_output()
             raise RuntimeError(f"[Yukon] Temperature of {temperature}°C exceeded the user set level of {self.__temperature_limit}°C! Turning off output")
+
+        # Run some user action based on the latest readings
+        if self.__monitor_action_callback is not None:
+            self.__monitor_action_callback(voltage, current, temperature)
 
         slot_num = 1
         for slot, module in self.__slot_assignments.items():

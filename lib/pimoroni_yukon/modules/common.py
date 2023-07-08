@@ -30,6 +30,8 @@ class YukonModule:
 
         self.clear_readings()
 
+        self.__monitor_action_callback = None
+
     def initialise(self, slot, adc1_func, adc2_func):
         # Record the slot we are in, and the ADC functions to call
         self.slot = slot
@@ -61,6 +63,12 @@ class YukonModule:
         t_celsius = t_kelvin - 273.15
         # https://www.allaboutcircuits.com/projects/measuring-temperature-with-an-ntc-thermistor/
         return t_celsius
+
+    def assign_monitor_action(self, callback_function):
+        if not None and not callable(callback_function):
+            raise TypeError("callback is not callable or None")
+
+        self.__monitor_action_callback = callback_function
 
     def monitor(self, logging_level=0):
         return None
