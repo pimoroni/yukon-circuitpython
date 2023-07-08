@@ -22,7 +22,6 @@ class QuadServoDirectModule(YukonModule):
 
     def __init__(self):
         super().__init__()
-        self.__initialised = False
 
     def initialise(self, slot, adc1_func, adc2_func):
         # Create pwm objects

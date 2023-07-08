@@ -62,7 +62,6 @@ class Yukon:
             board.SLOT5: None,
             board.SLOT6: None
         })
-        self.__slots_initialised = False
 
         # Main output enable
         self.__main_en = digitalio.DigitalInOut(board.MAIN_EN)
