@@ -101,9 +101,9 @@ class DualSwitchedModule(YukonModule):
             if self.halt_on_not_pgood:
                 raise RuntimeError(f"Power2 is not good")
 
-        temp = self.read_temperature()
-        if temp > self.TEMPERATURE_THRESHOLD:
-            raise RuntimeError(f"Temperature of {temp}°C exceeded the user set level of {self.TEMPERATURE_THRESHOLD}°C")
+        temperature = self.read_temperature()
+        if temperature > self.TEMPERATURE_THRESHOLD:
+            raise RuntimeError(f"Temperature of {temperature}°C exceeded the user set level of {self.TEMPERATURE_THRESHOLD}°C")
 
         message = None
         if logging_level >= 1:

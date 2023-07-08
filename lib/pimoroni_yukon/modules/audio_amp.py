@@ -360,7 +360,7 @@ class AudioAmpModule(YukonModule):
 
         return number
 
-    def detect_i2c():
+    def detect_i2c(self):
         self.__start_i2c()
         ack = self.__write_i2c_byte(self.AMP_I2C_ADDRESS << 1 | 0x01)
         self.__end_i2c()
