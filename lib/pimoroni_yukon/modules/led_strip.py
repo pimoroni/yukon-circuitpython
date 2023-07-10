@@ -11,6 +11,7 @@ class LEDStripModule(YukonModule):
     NAME = "LED Strip"
     NEOPIXEL = 0
     DOTSTAR = 1
+    NEOPIXELW = 2
     TEMPERATURE_THRESHOLD = 50.0
 
     # | ADC1  | SLOW1 | SLOW2 | SLOW3 | Module               | Condition (if any)          |
@@ -24,6 +25,8 @@ class LEDStripModule(YukonModule):
         self.__strip_type = strip_type
         if self.__strip_type == self.NEOPIXEL:
             self.NAME += " (NeoPixel)"
+        elif self.__strip_type == self.NEOPIXELW:
+            self.NAME += " (NeoPixelW)"
         else:
             self.NAME += " (DotStar)"
 
@@ -38,6 +41,9 @@ class LEDStripModule(YukonModule):
         if self.__strip_type == self.NEOPIXEL:
             from neopixel import NeoPixel
             self.pixels = NeoPixel(slot.FAST4, self.__num_pixels, brightness=self.__brightness, auto_write=False)
+        elif self.__strip_type == self.NEOPIXELW:
+            from neopixel import NeoPixel
+            self.pixels = NeoPixel(slot.FAST4, self.__num_pixels, brightness=self.__brightness, auto_write=False, pixel_order=(1, 0, 2, 3) )
         else:
             from adafruit_dotstar import DotStar
             self.pixels = DotStar(slot.FAST3, slot.FAST4, self.__num_pixels, brightness=self.__brightness, auto_write=False)
