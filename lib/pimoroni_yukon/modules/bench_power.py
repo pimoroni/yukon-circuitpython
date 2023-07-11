@@ -38,8 +38,11 @@ class BenchPowerModule(YukonModule):
         self.__last_pgood = False
 
     def initialise(self, slot, adc1_func, adc2_func):
-        # Create the voltage pwm object
-        self.voltage_pwm = PWMOut(slot.FAST2, duty_cycle=0, frequency=250000)
+        try:
+            # Create the voltage pwm object
+            self.voltage_pwm = PWMOut(slot.FAST2, duty_cycle=0, frequency=250000)
+        except ValueError:
+            raise ValueError(f"All timers for the voltage PWM pin are in use. Check that another installed module is not sharing the same PWM channel") from None
 
         # Create the power control pin objects
         self.__power_en = DigitalInOut(slot.FAST1)

@@ -27,11 +27,14 @@ class QuadServoRegModule(YukonModule):
         self.__last_pgood = False
 
     def initialise(self, slot, adc1_func, adc2_func):
-        # Create pwm objects
-        self.__pwms = [PWMOut(slot.FAST1, frequency=50),
-                       PWMOut(slot.FAST2, frequency=50),
-                       PWMOut(slot.FAST3, frequency=50),
-                       PWMOut(slot.FAST4, frequency=50)]
+        try:
+            # Create pwm objects
+            self.__pwms = [PWMOut(slot.FAST1, frequency=50),
+                           PWMOut(slot.FAST2, frequency=50),
+                           PWMOut(slot.FAST3, frequency=50),
+                           PWMOut(slot.FAST4, frequency=50)]
+        except ValueError:
+            raise ValueError(f"All timers for the servo PWM pins are in use. Check that another installed module is not sharing the same PWM channels") from None
 
         # Create servo objects
         self.servos = [Servo(self.__pwms[i]) for i in range(len(self.__pwms))]

@@ -29,9 +29,12 @@ class BigMotorModule(YukonModule):
         self.__frequency = frequency
 
     def initialise(self, slot, adc1_func, adc2_func):
-        # Create pwm objects
-        self.__pwm_p = PWMOut(slot.FAST4, frequency=self.__frequency)
-        self.__pwm_n = PWMOut(slot.FAST3, frequency=self.__frequency)
+        try:
+            # Create pwm objects
+            self.__pwm_p = PWMOut(slot.FAST4, frequency=self.__frequency)
+            self.__pwm_n = PWMOut(slot.FAST3, frequency=self.__frequency)
+        except ValueError:
+            raise ValueError(f"All timers for the motor PWM pins are in use. Check that another installed module is not sharing the same PWM channels") from None
 
         # Create motor object
         self.motor = DCMotor(self.__pwm_p, self.__pwm_n)
@@ -55,9 +58,11 @@ class BigMotorModule(YukonModule):
 
     def enable(self):
         self.__motor_en.value = True
+        print("Motor Enabled")
 
     def disable(self):
         self.__motor_en.value = False
+        print("Motor Disabled")
 
     def is_enabled(self):
         return self.__motor_en.value

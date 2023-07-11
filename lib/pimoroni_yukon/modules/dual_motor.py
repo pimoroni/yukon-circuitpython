@@ -27,13 +27,14 @@ class DualMotorModule(YukonModule):
         self.__frequency = frequency
 
     def initialise(self, slot, adc1_func, adc2_func):
-        super().initialise(slot, adc1_func, adc2_func)
-
-        # Create pwm objects
-        self.__pwms_p = [PWMOut(slot.FAST2, frequency=self.__frequency),
-                         PWMOut(slot.FAST4, frequency=self.__frequency)]
-        self.__pwms_n = [PWMOut(slot.FAST1, frequency=self.__frequency),
-                         PWMOut(slot.FAST3, frequency=self.__frequency)]
+        try:
+            # Create pwm objects
+            self.__pwms_p = [PWMOut(slot.FAST2, frequency=self.__frequency),
+                            PWMOut(slot.FAST4, frequency=self.__frequency)]
+            self.__pwms_n = [PWMOut(slot.FAST1, frequency=self.__frequency),
+                            PWMOut(slot.FAST3, frequency=self.__frequency)]
+        except ValueError:
+            raise ValueError(f"All timers for the motor PWM pins are in use. Check that another installed module is not sharing the same PWM channels") from None
 
         # Create motor objects
         self.motors = [DCMotor(self.__pwms_p[i], self.__pwms_n[i]) for i in range(len(self.__pwms_p))]
