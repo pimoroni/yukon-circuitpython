@@ -106,16 +106,6 @@ class Yukon:
         self.__leds[0].direction = digitalio.Direction.OUTPUT
         self.__leds[1].direction = digitalio.Direction.OUTPUT
 
-        # Extension header (LCD) pins
-        self.__lcd_bl = digitalio.DigitalInOut(board.LCD_BL)
-        self.__lcd_bl.direction = digitalio.Direction.OUTPUT
-
-        self.__lcd_cs = digitalio.DigitalInOut(board.LCD_CS)
-        self.__lcd_cs.direction = digitalio.Direction.OUTPUT
-
-        self.__lcd_dc = digitalio.DigitalInOut(board.LCD_DC)
-        self.__lcd_dc.direction = digitalio.Direction.OUTPUT
-
         # Shared analog input
         self.__shared_adc = analogio.AnalogIn(board.SHARED_ADC)
 
@@ -644,15 +634,6 @@ class Yukon:
                     else:
                         print(f"{name} = {value},", end=" ")
 
-    def lcd_dc(self, value):
-        self.__lcd_dc.value = value
-
-    def lcd_cs(self, value):
-        self.__lcd_cs.value = value
-
-    def lcd_bl(self, value):
-        self.__lcd_bl.value = value
-
     def reset(self):
         # Only disable the output if enabled (avoids duplicate messages)
         if self.is_main_output() is True:
@@ -667,10 +648,6 @@ class Yukon:
 
         self.__leds[0].value = False
         self.__leds[1].value = False
-
-        self.__lcd_bl.value = False
-        self.__lcd_cs.value = False
-        self.__lcd_dc.value = False
 
         # Configure each module so they go back to their default states
         for slot, module in self.__slot_assignments.items():
