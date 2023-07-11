@@ -5,13 +5,15 @@
 from .common import *
 from pwmio import PWMOut
 from digitalio import DigitalInOut
-from adafruit_motor.motor import DCMotor
 from collections import OrderedDict
 
 
 class DualMotorModule(YukonModule):
     NAME = "Dual Motor"
+    DUAL = 0
+    STEPPER = 1
     NUM_MOTORS = 2
+    NUM_STEPPERS = 1
     FAULT_THRESHOLD = 0.1
     DEFAULT_FREQUENCY = 25000
     TEMPERATURE_THRESHOLD = 50.0
@@ -20,24 +22,35 @@ class DualMotorModule(YukonModule):
     # |-------|-------|-------|-------|----------------------|-----------------------------|
     # | HIGH  | 1     | 1     | 1     | Dual Motor           |                             |
     def is_module(adc_level, slow1, slow2, slow3):
-        return adc_level == ADC_HIGH and slow1 is HIGH and slow2 is HIGH and slow3 is HIGH
+        return adc_level == ADC_HIGH and slow2 is HIGH and slow3 is HIGH
 
-    def __init__(self, frequency=DEFAULT_FREQUENCY):
+    def __init__(self, motor_type=DUAL, frequency=DEFAULT_FREQUENCY):
         super().__init__()
+        self.__motor_type = motor_type
+        if self.__motor_type == self.STEPPER:
+            self.NAME += " (Stepper)"
+
         self.__frequency = frequency
 
     def initialise(self, slot, adc1_func, adc2_func):
         try:
             # Create pwm objects
             self.__pwms_p = [PWMOut(slot.FAST2, frequency=self.__frequency),
-                            PWMOut(slot.FAST4, frequency=self.__frequency)]
+                             PWMOut(slot.FAST4, frequency=self.__frequency)]
             self.__pwms_n = [PWMOut(slot.FAST1, frequency=self.__frequency),
-                            PWMOut(slot.FAST3, frequency=self.__frequency)]
+                             PWMOut(slot.FAST3, frequency=self.__frequency)]
         except ValueError:
             raise ValueError(f"All timers for the motor PWM pins are in use. Check that another installed module is not sharing the same PWM channels") from None
 
-        # Create motor objects
-        self.motors = [DCMotor(self.__pwms_p[i], self.__pwms_n[i]) for i in range(len(self.__pwms_p))]
+        if self.__motor_type == self.DUAL:
+            from adafruit_motor.motor import DCMotor
+
+            # Create motor objects
+            self.motors = [DCMotor(self.__pwms_p[i], self.__pwms_n[i]) for i in range(len(self.__pwms_p))]
+        else:
+            from adafruit_motor.stepper import StepperMotor
+
+            self.stepper = StepperMotor(self.__pwms_p[0], self.__pwms_n[0], self.__pwms_p[1], self.__pwms_n[1])
 
         # Create motor control pin objects
         self.__motors_decay = DigitalInOut(slot.SLOW1)
@@ -51,8 +64,11 @@ class DualMotorModule(YukonModule):
         super().initialise(slot, adc1_func, adc2_func)
 
     def configure(self):
-        for motor in self.motors:
-            motor.throttle = None
+        if self.__motor_type == self.DUAL:
+            for motor in self.motors:
+                motor.throttle = None
+        else:
+            self.stepper.release()
 
         self.__motors_decay.switch_to_output(False)
         self.__motors_toff.switch_to_output(False)
