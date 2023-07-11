@@ -6,6 +6,7 @@ from .common import *
 from pwmio import PWMOut
 from digitalio import DigitalInOut
 from collections import OrderedDict
+from pimoroni_yukon.errors import FaultError, OverTemperatureError
 
 
 class DualMotorModule(YukonModule):
@@ -39,8 +40,11 @@ class DualMotorModule(YukonModule):
                              PWMOut(slot.FAST4, frequency=self.__frequency)]
             self.__pwms_n = [PWMOut(slot.FAST1, frequency=self.__frequency),
                              PWMOut(slot.FAST3, frequency=self.__frequency)]
-        except ValueError:
-            raise ValueError(f"All timers for the motor PWM pins are in use. Check that another installed module is not sharing the same PWM channels") from None
+        except ValueError as e:
+            if slot.ID <= 2 or slot.ID >= 5:
+                conflicting_slot = (((slot.ID - 1) + 4) % 8) + 1
+                raise type(e)(f"PWM channel(s) already in use. Check that the module in Slot{conflicting_slot} does not share the same PWM channel(s)") from None
+            raise type(e)(f"PWM channel(s) already in use. Check that a module in another slot does not share the same PWM channel(s)") from None
 
         if self.__motor_type == self.DUAL:
             from adafruit_motor.motor import DCMotor
@@ -112,11 +116,11 @@ class DualMotorModule(YukonModule):
     def monitor(self, logging_level=0):
         fault = self.read_fault()
         if fault is True:
-            raise RuntimeError(f"Fault detected on motor driver")
+            raise FaultError(self.__message_header() + f"Fault detected on motor driver! Turning off output")
 
         temperature = self.read_temperature()
         if temperature > self.TEMPERATURE_THRESHOLD:
-            raise RuntimeError(f"Temperature of {temperature}°C exceeded the user set level of {self.TEMPERATURE_THRESHOLD}°C")
+            raise OverTemperatureError(self.__message_header() + f"Temperature of {temperature}°C exceeded the user set level of {self.TEMPERATURE_THRESHOLD}°C! Turning off output")
 
         # Run some user action based on the latest readings
         if self.__monitor_action_callback is not None:
@@ -127,8 +131,6 @@ class DualMotorModule(YukonModule):
         self.__min_temperature = min(temperature, self.__min_temperature)
         self.__avg_temperature += temperature
         self.__count_avg += 1
-
-        return None
 
     def get_readings(self):
         return OrderedDict({

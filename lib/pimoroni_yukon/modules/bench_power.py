@@ -6,6 +6,7 @@ from .common import *
 from pwmio import PWMOut
 from digitalio import DigitalInOut
 from collections import OrderedDict
+from pimoroni_yukon.errors import FaultError, OverTemperatureError
 
 
 class BenchPowerModule(YukonModule):
@@ -41,8 +42,11 @@ class BenchPowerModule(YukonModule):
         try:
             # Create the voltage pwm object
             self.voltage_pwm = PWMOut(slot.FAST2, duty_cycle=0, frequency=250000)
-        except ValueError:
-            raise ValueError(f"All timers for the voltage PWM pin are in use. Check that another installed module is not sharing the same PWM channel") from None
+        except ValueError as e:
+            if slot.ID <= 2 or slot.ID >= 5:
+                conflicting_slot = (((slot.ID - 1) + 4) % 8) + 1
+                raise type(e)(f"PWM channel(s) already in use. Check that the module in Slot{conflicting_slot} does not share the same PWM channel(s)") from None
+            raise type(e)(f"PWM channel(s) already in use. Check that a module in another slot does not share the same PWM channel(s)") from None
 
         # Create the power control pin objects
         self.__power_en = DigitalInOut(slot.FAST1)
@@ -103,20 +107,19 @@ class BenchPowerModule(YukonModule):
         pgood = self.read_power_good()
         if pgood is not True:
             if self.halt_on_not_pgood:
-                raise RuntimeError(f"Power is not good")
+                raise FaultError(self.__message_header() + f"Power is not good! Turning off output")
 
         temperature = self.read_temperature()
         if temperature > self.TEMPERATURE_THRESHOLD:
-            raise RuntimeError(f"Temperature of {temperature}°C exceeded the user set level of {self.TEMPERATURE_THRESHOLD}°C")
-
-        message = None
-        if logging_level >= 1:
-            if self.__last_pgood is True and pgood is not True:
-                message = f"Power is not good"
-            elif self.__last_pgood is not True and pgood is True:
-                message = f"Power is good"
+            raise OverTemperatureError(self.__message_header() + f"Temperature of {temperature}°C exceeded the user set level of {self.TEMPERATURE_THRESHOLD}°C! Turning off output")
 
         voltage_out = self.read_voltage()
+
+        if logging_level >= 1:
+            if self.__last_pgood is True and pgood is not True:
+                print(self.__message_header() + f"Power is not good")
+            elif self.__last_pgood is not True and pgood is True:
+                print(self.__message_header() + f"Power is good")
 
         # Run some user action based on the latest readings
         if self.__monitor_action_callback is not None:
@@ -134,8 +137,6 @@ class BenchPowerModule(YukonModule):
         self.__avg_temperature += temperature
 
         self.__count_avg += 1
-
-        return message
 
     def get_readings(self):
         return OrderedDict({

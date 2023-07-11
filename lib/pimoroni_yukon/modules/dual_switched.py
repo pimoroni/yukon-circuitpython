@@ -5,6 +5,7 @@
 from .common import *
 from digitalio import DigitalInOut
 from collections import OrderedDict
+from pimoroni_yukon.errors import FaultError, OverTemperatureError
 
 
 class DualSwitchedModule(YukonModule):
@@ -95,35 +96,26 @@ class DualSwitchedModule(YukonModule):
         pgood1 = self.read_power_good(1)
         if pgood1 is not True:
             if self.halt_on_not_pgood:
-                raise RuntimeError(f"Power1 is not good")
+                raise FaultError(self.__message_header() + f"Power1 is not good! Turning off output")
         pgood2 = self.read_power_good(2)
         if pgood2 is not True:
             if self.halt_on_not_pgood:
-                raise RuntimeError(f"Power2 is not good")
+                raise FaultError(self.__message_header() + f"Power2 is not good! Turning off output")
 
         temperature = self.read_temperature()
         if temperature > self.TEMPERATURE_THRESHOLD:
-            raise RuntimeError(f"Temperature of {temperature}°C exceeded the user set level of {self.TEMPERATURE_THRESHOLD}°C")
+            raise OverTemperatureError(self.__message_header() + f"Temperature of {temperature}°C exceeded the user set level of {self.TEMPERATURE_THRESHOLD}°C! Turning off output")
 
-        message = None
         if logging_level >= 1:
             if self.__last_pgood1 is True and pgood1 is not True:
-                message = f"Power1 is not good"
+                print(self.__message_header() + f"Power1 is not good")
             elif self.__last_pgood1 is not True and pgood1 is True:
-                message = f"Power1 is good"
+                print(self.__message_header() + f"Power1 is good")
 
             if self.__last_pgood2 is True and pgood2 is not True:
-                if message is None:
-                    message = ""
-                else:
-                    message += ", "
-                message += f"Power2 is not good"
+                print(self.__message_header() + f"Power2 is not good")
             elif self.__last_pgood2 is not True and pgood2 is True:
-                if message is None:
-                    message = ""
-                else:
-                    message += ", "
-                message += f"Power2 is good"
+                print(self.__message_header() + f"Power2 is good")
 
         # Run some user action based on the latest readings
         if self.__monitor_action_callback is not None:
@@ -138,8 +130,6 @@ class DualSwitchedModule(YukonModule):
         self.__min_temperature = min(temperature, self.__min_temperature)
         self.__avg_temperature += temperature
         self.__count_avg += 1
-
-        return message
 
     def get_readings(self):
         return OrderedDict({
