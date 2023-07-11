@@ -70,7 +70,7 @@ class YukonModule:
 
         self.__monitor_action_callback = callback_function
 
-    def monitor(self, logging_level=0):
+    def monitor(self):
         pass
 
     def get_readings(self):

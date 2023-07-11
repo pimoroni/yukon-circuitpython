@@ -6,6 +6,7 @@ from .common import *
 import tca
 from digitalio import DigitalInOut
 from collections import OrderedDict
+from pimoroni_yukon.errors import OverTemperatureError
 
 # PAGE 0 Regs
 PAGE = 0x00 #Device Page Section 8.9.5
@@ -248,10 +249,10 @@ class AudioAmpModule(YukonModule):
     def read_temperature(self):
         return self.__read_adc2_as_temp()
 
-    def monitor(self, logging_level=0):
+    def monitor(self):
         temperature = self.read_temperature()
         if temperature > self.TEMPERATURE_THRESHOLD:
-            raise RuntimeError(f"Temperature of {temperature}°C exceeded the user set level of {self.TEMPERATURE_THRESHOLD}°C")
+            raise OverTemperatureError(self.__message_header() + f"Temperature of {temperature}°C exceeded the user set level of {self.TEMPERATURE_THRESHOLD}°C! Turning off output")
 
         # Run some user action based on the latest readings
         if self.__monitor_action_callback is not None:
@@ -261,8 +262,6 @@ class AudioAmpModule(YukonModule):
         self.__min_temperature = min(temperature, self.__min_temperature)
         self.__avg_temperature += temperature
         self.__count_avg += 1
-
-        return None
 
     def get_readings(self):
         return OrderedDict({

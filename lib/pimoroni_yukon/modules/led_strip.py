@@ -6,6 +6,7 @@ from .common import *
 from digitalio import DigitalInOut, Pull
 from collections import OrderedDict
 from pimoroni_yukon.errors import FaultError, OverTemperatureError
+import pimoroni_yukon.logging as logging
 
 
 class LEDStripModule(YukonModule):
@@ -72,7 +73,7 @@ class LEDStripModule(YukonModule):
     def read_temperature(self):
         return self.__read_adc2_as_temp()
 
-    def monitor(self, logging_level=0):
+    def monitor(self):
         pgood = self.read_power_good()
         if pgood is not True:
             if self.halt_on_not_pgood:
@@ -82,11 +83,10 @@ class LEDStripModule(YukonModule):
         if temperature > self.TEMPERATURE_THRESHOLD:
             raise OverTemperatureError(self.__message_header() + f"Temperature of {temperature}°C exceeded the user set level of {self.TEMPERATURE_THRESHOLD}°C! Turning off output")
 
-        if logging_level >= 1:
-            if self.__last_pgood is True and pgood is not True:
-                print(self.__message_header() + f"Power is not good")
-            elif self.__last_pgood is not True and pgood is True:
-                print(self.__message_header() + f"Power is good")
+        if self.__last_pgood is True and pgood is not True:
+            logging.warn(self.__message_header() + f"Power is not good")
+        elif self.__last_pgood is not True and pgood is True:
+            logging.warn(self.__message_header() + f"Power is good")
 
         # Run some user action based on the latest readings
         if self.__monitor_action_callback is not None:

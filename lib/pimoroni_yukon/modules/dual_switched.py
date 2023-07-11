@@ -6,6 +6,7 @@ from .common import *
 from digitalio import DigitalInOut
 from collections import OrderedDict
 from pimoroni_yukon.errors import FaultError, OverTemperatureError
+import pimoroni_yukon.logging as logging
 
 
 class DualSwitchedModule(YukonModule):
@@ -92,7 +93,7 @@ class DualSwitchedModule(YukonModule):
     def read_temperature(self):
         return self.__read_adc2_as_temp()
 
-    def monitor(self, logging_level=0):
+    def monitor(self):
         pgood1 = self.read_power_good(1)
         if pgood1 is not True:
             if self.halt_on_not_pgood:
@@ -106,16 +107,15 @@ class DualSwitchedModule(YukonModule):
         if temperature > self.TEMPERATURE_THRESHOLD:
             raise OverTemperatureError(self.__message_header() + f"Temperature of {temperature}°C exceeded the user set level of {self.TEMPERATURE_THRESHOLD}°C! Turning off output")
 
-        if logging_level >= 1:
-            if self.__last_pgood1 is True and pgood1 is not True:
-                print(self.__message_header() + f"Power1 is not good")
-            elif self.__last_pgood1 is not True and pgood1 is True:
-                print(self.__message_header() + f"Power1 is good")
+        if self.__last_pgood1 is True and pgood1 is not True:
+            logging.warn(self.__message_header() + f"Power1 is not good")
+        elif self.__last_pgood1 is not True and pgood1 is True:
+            logging.warn(self.__message_header() + f"Power1 is good")
 
-            if self.__last_pgood2 is True and pgood2 is not True:
-                print(self.__message_header() + f"Power2 is not good")
-            elif self.__last_pgood2 is not True and pgood2 is True:
-                print(self.__message_header() + f"Power2 is good")
+        if self.__last_pgood2 is True and pgood2 is not True:
+            logging.warn(self.__message_header() + f"Power2 is not good")
+        elif self.__last_pgood2 is not True and pgood2 is True:
+            logging.warn(self.__message_header() + f"Power2 is good")
 
         # Run some user action based on the latest readings
         if self.__monitor_action_callback is not None:

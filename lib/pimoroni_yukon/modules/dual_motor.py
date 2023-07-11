@@ -113,7 +113,7 @@ class DualMotorModule(YukonModule):
     def read_temperature(self):
         return self.__read_adc2_as_temp()
 
-    def monitor(self, logging_level=0):
+    def monitor(self):
         fault = self.read_fault()
         if fault is True:
             raise FaultError(self.__message_header() + f"Fault detected on motor driver! Turning off output")

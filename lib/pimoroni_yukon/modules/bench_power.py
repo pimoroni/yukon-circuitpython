@@ -7,6 +7,7 @@ from pwmio import PWMOut
 from digitalio import DigitalInOut
 from collections import OrderedDict
 from pimoroni_yukon.errors import FaultError, OverTemperatureError
+import pimoroni_yukon.logging as logging
 
 
 class BenchPowerModule(YukonModule):
@@ -103,7 +104,7 @@ class BenchPowerModule(YukonModule):
     def read_temperature(self):
         return self.__read_adc2_as_temp()
 
-    def monitor(self, logging_level=0):
+    def monitor(self):
         pgood = self.read_power_good()
         if pgood is not True:
             if self.halt_on_not_pgood:
@@ -115,11 +116,10 @@ class BenchPowerModule(YukonModule):
 
         voltage_out = self.read_voltage()
 
-        if logging_level >= 1:
-            if self.__last_pgood is True and pgood is not True:
-                print(self.__message_header() + f"Power is not good")
-            elif self.__last_pgood is not True and pgood is True:
-                print(self.__message_header() + f"Power is good")
+        if self.__last_pgood is True and pgood is not True:
+            logging.warn(self.__message_header() + f"Power is not good")
+        elif self.__last_pgood is not True and pgood is True:
+            logging.warn(self.__message_header() + f"Power is good")
 
         # Run some user action based on the latest readings
         if self.__monitor_action_callback is not None:

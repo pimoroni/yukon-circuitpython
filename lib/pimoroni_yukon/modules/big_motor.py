@@ -62,11 +62,9 @@ class BigMotorModule(YukonModule):
 
     def enable(self):
         self.__motor_en.value = True
-        print("Motor Enabled")
 
     def disable(self):
         self.__motor_en.value = False
-        print("Motor Disabled")
 
     def is_enabled(self):
         return self.__motor_en.value
@@ -81,7 +79,7 @@ class BigMotorModule(YukonModule):
     def read_temperature(self):
         return self.__read_adc2_as_temp()
 
-    def monitor(self, logging_level=0):
+    def monitor(self):
         fault = self.read_fault()
         if fault is True:
             raise FaultError(self.__message_header() + f"Fault detected on motor driver")
