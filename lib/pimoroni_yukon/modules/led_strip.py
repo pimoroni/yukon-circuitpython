@@ -7,13 +7,13 @@ from digitalio import DigitalInOut, Pull
 from collections import OrderedDict
 from pimoroni_yukon.errors import FaultError, OverTemperatureError
 import pimoroni_yukon.logging as logging
+import neopixel
 
 
 class LEDStripModule(YukonModule):
     NAME = "LED Strip"
     NEOPIXEL = 0
     DOTSTAR = 1
-    NEOPIXELW = 2
     TEMPERATURE_THRESHOLD = 50.0
 
     # | ADC1  | SLOW1 | SLOW2 | SLOW3 | Module               | Condition (if any)          |
@@ -22,30 +22,25 @@ class LEDStripModule(YukonModule):
     def is_module(adc_level, slow1, slow2, slow3):
         return adc_level == ADC_LOW and slow1 is HIGH and slow2 is HIGH and slow3 is HIGH
 
-    def __init__(self, strip_type, num_pixels, brightness=1.0, halt_on_not_pgood=False):
+    def __init__(self, strip_type, num_pixels, brightness=1.0, led_type=neopixel.RGB, halt_on_not_pgood=False):
         super().__init__()
         self.__strip_type = strip_type
         if self.__strip_type == self.NEOPIXEL:
             self.NAME += " (NeoPixel)"
-        elif self.__strip_type == self.NEOPIXELW:
-            self.NAME += " (NeoPixelW)"
         else:
             self.NAME += " (DotStar)"
 
         self.__num_pixels = num_pixels
         self.__brightness = brightness
         self.halt_on_not_pgood = halt_on_not_pgood
-
+        self.__led_type = led_type
+        
         self.__last_pgood = False
 
     def initialise(self, slot, adc1_func, adc2_func):
         # Create the strip driver object
         if self.__strip_type == self.NEOPIXEL:
-            from neopixel import NeoPixel
-            self.pixels = NeoPixel(slot.FAST4, self.__num_pixels, brightness=self.__brightness, auto_write=False)
-        elif self.__strip_type == self.NEOPIXELW:
-            from neopixel import NeoPixel
-            self.pixels = NeoPixel(slot.FAST4, self.__num_pixels, brightness=self.__brightness, auto_write=False, pixel_order=(1, 0, 2, 3) )
+            self.pixels = neopixel.NeoPixel(slot.FAST4, self.__num_pixels, brightness=self.__brightness, auto_write=False, pixel_order=self.__led_type)
         else:
             from adafruit_dotstar import DotStar
             self.pixels = DotStar(slot.FAST3, slot.FAST4, self.__num_pixels, brightness=self.__brightness, auto_write=False)
