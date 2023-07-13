@@ -5,13 +5,16 @@
 from .common import *
 from pwmio import PWMOut
 from digitalio import DigitalInOut
-from adafruit_motor.motor import DCMotor
 from collections import OrderedDict
+from pimoroni_yukon.errors import FaultError, OverTemperatureError
 
 
 class DualMotorModule(YukonModule):
     NAME = "Dual Motor"
+    DUAL = 0
+    STEPPER = 1
     NUM_MOTORS = 2
+    NUM_STEPPERS = 1
     FAULT_THRESHOLD = 0.1
     DEFAULT_FREQUENCY = 25000
     TEMPERATURE_THRESHOLD = 50.0
@@ -20,23 +23,38 @@ class DualMotorModule(YukonModule):
     # |-------|-------|-------|-------|----------------------|-----------------------------|
     # | HIGH  | 1     | 1     | 1     | Dual Motor           |                             |
     def is_module(adc_level, slow1, slow2, slow3):
-        return adc_level == ADC_HIGH and slow1 is HIGH and slow2 is HIGH and slow3 is HIGH
+        return adc_level == ADC_HIGH and slow2 is HIGH and slow3 is HIGH
 
-    def __init__(self, frequency=DEFAULT_FREQUENCY):
+    def __init__(self, motor_type=DUAL, frequency=DEFAULT_FREQUENCY):
         super().__init__()
+        self.__motor_type = motor_type
+        if self.__motor_type == self.STEPPER:
+            self.NAME += " (Stepper)"
+
         self.__frequency = frequency
 
     def initialise(self, slot, adc1_func, adc2_func):
-        super().initialise(slot, adc1_func, adc2_func)
+        try:
+            # Create pwm objects
+            self.__pwms_p = [PWMOut(slot.FAST2, frequency=self.__frequency),
+                             PWMOut(slot.FAST4, frequency=self.__frequency)]
+            self.__pwms_n = [PWMOut(slot.FAST1, frequency=self.__frequency),
+                             PWMOut(slot.FAST3, frequency=self.__frequency)]
+        except ValueError as e:
+            if slot.ID <= 2 or slot.ID >= 5:
+                conflicting_slot = (((slot.ID - 1) + 4) % 8) + 1
+                raise type(e)(f"PWM channel(s) already in use. Check that the module in Slot{conflicting_slot} does not share the same PWM channel(s)") from None
+            raise type(e)(f"PWM channel(s) already in use. Check that a module in another slot does not share the same PWM channel(s)") from None
 
-        # Create pwm objects
-        self.__pwms_p = [PWMOut(slot.FAST2, frequency=self.__frequency),
-                         PWMOut(slot.FAST4, frequency=self.__frequency)]
-        self.__pwms_n = [PWMOut(slot.FAST1, frequency=self.__frequency),
-                         PWMOut(slot.FAST3, frequency=self.__frequency)]
+        if self.__motor_type == self.DUAL:
+            from adafruit_motor.motor import DCMotor
 
-        # Create motor objects
-        self.motors = [DCMotor(self.__pwms_p[i], self.__pwms_n[i]) for i in range(len(self.__pwms_p))]
+            # Create motor objects
+            self.motors = [DCMotor(self.__pwms_p[i], self.__pwms_n[i]) for i in range(len(self.__pwms_p))]
+        else:
+            from adafruit_motor.stepper import StepperMotor
+
+            self.stepper = StepperMotor(self.__pwms_p[0], self.__pwms_n[0], self.__pwms_p[1], self.__pwms_n[1])
 
         # Create motor control pin objects
         self.__motors_decay = DigitalInOut(slot.SLOW1)
@@ -50,8 +68,11 @@ class DualMotorModule(YukonModule):
         super().initialise(slot, adc1_func, adc2_func)
 
     def configure(self):
-        for motor in self.motors:
-            motor.throttle = None
+        if self.__motor_type == self.DUAL:
+            for motor in self.motors:
+                motor.throttle = None
+        else:
+            self.stepper.release()
 
         self.__motors_decay.switch_to_output(False)
         self.__motors_toff.switch_to_output(False)
@@ -92,14 +113,14 @@ class DualMotorModule(YukonModule):
     def read_temperature(self):
         return self.__read_adc2_as_temp()
 
-    def monitor(self, logging_level=0):
+    def monitor(self):
         fault = self.read_fault()
         if fault is True:
-            raise RuntimeError(f"Fault detected on motor driver")
+            raise FaultError(self.__message_header() + f"Fault detected on motor driver! Turning off output")
 
         temperature = self.read_temperature()
         if temperature > self.TEMPERATURE_THRESHOLD:
-            raise RuntimeError(f"Temperature of {temperature}°C exceeded the user set level of {self.TEMPERATURE_THRESHOLD}°C")
+            raise OverTemperatureError(self.__message_header() + f"Temperature of {temperature}°C exceeded the user set level of {self.TEMPERATURE_THRESHOLD}°C! Turning off output")
 
         # Run some user action based on the latest readings
         if self.__monitor_action_callback is not None:
@@ -110,8 +131,6 @@ class DualMotorModule(YukonModule):
         self.__min_temperature = min(temperature, self.__min_temperature)
         self.__avg_temperature += temperature
         self.__count_avg += 1
-
-        return None
 
     def get_readings(self):
         return OrderedDict({

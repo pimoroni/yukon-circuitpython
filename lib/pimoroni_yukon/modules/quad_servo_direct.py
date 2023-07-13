@@ -24,11 +24,17 @@ class QuadServoDirectModule(YukonModule):
         super().__init__()
 
     def initialise(self, slot, adc1_func, adc2_func):
-        # Create pwm objects
-        self.__pwms = [PWMOut(slot.FAST1, frequency=50),
-                       PWMOut(slot.FAST2, frequency=50),
-                       PWMOut(slot.FAST3, frequency=50),
-                       PWMOut(slot.FAST4, frequency=50)]
+        try:
+            # Create pwm objects
+            self.__pwms = [PWMOut(slot.FAST1, frequency=50),
+                           PWMOut(slot.FAST2, frequency=50),
+                           PWMOut(slot.FAST3, frequency=50),
+                           PWMOut(slot.FAST4, frequency=50)]
+        except ValueError as e:
+            if slot.ID <= 2 or slot.ID >= 5:
+                conflicting_slot = (((slot.ID - 1) + 4) % 8) + 1
+                raise type(e)(f"PWM channel(s) already in use. Check that the module in Slot{conflicting_slot} does not share the same PWM channel(s)") from None
+            raise type(e)(f"PWM channel(s) already in use. Check that a module in another slot does not share the same PWM channel(s)") from None
 
         # Create servo objects
         self.servos = [Servo(self.__pwms[i]) for i in range(len(self.__pwms))]

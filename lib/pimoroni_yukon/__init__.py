@@ -11,6 +11,8 @@ import supervisor
 import tca
 
 from pimoroni_yukon.modules import KNOWN_MODULES, ADC_FLOAT, ADC_LOW, ADC_HIGH
+import pimoroni_yukon.logging as logging
+from pimoroni_yukon.errors import *
 from collections import OrderedDict
 
 
@@ -43,16 +45,11 @@ class Yukon:
     DETECTION_ADC_LOW = 0.1
     DETECTION_ADC_HIGH = 3.2
 
-    LOG_NONE = 0
-    LOG_WARN = 1
-    LOG_INFO = 2
-    LOG_DEBUG = 3
-
-    def __init__(self, voltage_limit=DEFAULT_VOLTAGE_LIMIT, current_limit=DEFAULT_CURRENT_LIMIT, temperature_limit=DEFAULT_TEMPERATURE_LIMIT, logging_level=LOG_INFO):
+    def __init__(self, voltage_limit=DEFAULT_VOLTAGE_LIMIT, current_limit=DEFAULT_CURRENT_LIMIT, temperature_limit=DEFAULT_TEMPERATURE_LIMIT, logging_level=logging.LOG_INFO):
         self.__voltage_limit = min(voltage_limit, self.ABSOLUTE_MAX_VOLTAGE_LIMIT)
         self.__current_limit = current_limit
         self.__temperature_limit = temperature_limit
-        self.__logging_level = logging_level
+        logging.level = logging_level
 
         self.__slot_assignments = OrderedDict({
             board.SLOT1: None,
@@ -106,16 +103,6 @@ class Yukon:
         self.__leds[0].direction = digitalio.Direction.OUTPUT
         self.__leds[1].direction = digitalio.Direction.OUTPUT
 
-        # Extension header (LCD) pins
-        self.__lcd_bl = digitalio.DigitalInOut(board.LCD_BL)
-        self.__lcd_bl.direction = digitalio.Direction.OUTPUT
-
-        self.__lcd_cs = digitalio.DigitalInOut(board.LCD_CS)
-        self.__lcd_cs.direction = digitalio.Direction.OUTPUT
-
-        self.__lcd_dc = digitalio.DigitalInOut(board.LCD_DC)
-        self.__lcd_dc.direction = digitalio.Direction.OUTPUT
-
         # Shared analog input
         self.__shared_adc = analogio.AnalogIn(board.SHARED_ADC)
 
@@ -123,17 +110,8 @@ class Yukon:
 
         self.__monitor_action_callback = None
 
-    def log_warn(self, objects='', sep='', end='\n'):
-        if self.__logging_level >= self.LOG_WARN:
-            print(objects, sep=sep, end=end)
-
-    def log_info(self, objects='', sep='', end='\n'):
-        if self.__logging_level >= self.LOG_INFO:
-            print(objects, sep=sep, end=end)
-
-    def log_debug(self, objects='', sep='', end='\n'):
-        if self.__logging_level >= self.LOG_DEBUG:
-            print(objects, sep=sep, end=end)
+    def change_logging(self, logging_level):
+        logging.level = logging_level
 
     def __check_slot(self, slot):
         if type(slot) is int:
@@ -151,22 +129,19 @@ class Yukon:
         if self.is_main_output():
             raise RuntimeError("Cannot find slots with modules whilst the main output is active")
 
-        self.log_info(f"> Finding slots with '{module_type.NAME}' module")
+        logging.info(f"> Finding slots with '{module_type.NAME}' module")
 
         slots = []
-        slot_num = 1
-
-        for slot, module in self.__slot_assignments.items():
-            self.log_info(f"[Slot{slot_num}]", end=" ")
+        for slot in self.__slot_assignments.keys():
+            logging.info(f"[Slot{slot.ID}]", end=" ")
             detected = self.__detect_module(slot)
 
             if detected is module_type:
-                self.log_info(f"Found '{detected.NAME}' module")
-                slots.append(slot_num)
+                logging.info(f"Found '{detected.NAME}' module")
+                slots.append(slot.ID)
             else:
-                self.log_info(f"No '{module_type.NAME}` module")
+                logging.info(f"No '{module_type.NAME}` module")
 
-            slot_num += 1
         return slots
 
     def register_with_slot(self, module, slot):
@@ -178,7 +153,7 @@ class Yukon:
         if self.__slot_assignments[slot] is None:
             self.__slot_assignments[slot] = module
         else:
-            raise RuntimeError("The selected slot is already populated")
+            raise ValueError("The selected slot is already populated")
 
     def deregister_slot(self, slot):
         if self.is_main_output():
@@ -213,7 +188,7 @@ class Yukon:
             adc_val += self.__shared_adc_voltage()
         adc_val /= self.DETECTION_SAMPLES
 
-        self.log_debug(f"ADC1 = {adc_val}, SLOW1 = {int(slow1.value)}, SLOW2 = {int(slow2.value)}, SLOW3 = {int(slow3.value)}", end=", ")
+        logging.debug(f"ADC1 = {adc_val}, SLOW1 = {int(slow1.value)}, SLOW2 = {int(slow2.value)}, SLOW3 = {int(slow3.value)}", end=", ")
 
         adc_level = ADC_FLOAT
         if adc_val <= self.DETECTION_ADC_LOW:
@@ -263,68 +238,64 @@ class Yukon:
         raise_undetected = False
         raise_discrepency = False
         unregistered_slots = 0
-        slot_num = 1
 
         for slot, module in self.__slot_assignments.items():
-            self.log_info(f"[Slot{slot_num}]", end=" ")
+            logging.info(f"[Slot{slot.ID}]", end=" ")
             detected = self.__detect_module(slot)
 
             if detected is None:
                 if module is not None:
-                    self.log_info(f"No module detected! Expected a '{module.NAME}' module.")
+                    logging.info(f"No module detected! Expected a '{module.NAME}' module.")
                     if slot not in allow_undetected:
                         raise_undetected = True
                 else:
-                    self.log_info(f"Module slot is empty.")
+                    logging.info(f"Module slot is empty.")
                     unregistered_slots += 1
             else:
                 if type(module) is detected:
-                    self.log_info(f"'{module.NAME}' module detected and registered.")
+                    logging.info(f"'{module.NAME}' module detected and registered.")
                 else:
                     if module is not None:
-                        self.log_info(f"Module discrepency! Expected a '{module.NAME}' module, but detected a '{detected.NAME}' module.")
+                        logging.info(f"Module discrepency! Expected a '{module.NAME}' module, but detected a '{detected.NAME}' module.")
                         if slot not in allow_discrepencies:
                             raise_discrepency = True
                     else:
-                        self.log_info(f"'{detected.NAME}' module detected but not registered.", sep="")
+                        logging.info(f"'{detected.NAME}' module detected but not registered.", sep="")
                         if slot not in allow_unregistered:
                             raise_unregistered = True
                         unregistered_slots += 1
-            slot_num += 1
 
-        if not allow_no_modules and unregistered_slots == 6:
-            raise RuntimeError("No modules have been registered with Yukon. At least one module needs to be registered to enable the output")
+        if not allow_no_modules and unregistered_slots == self.NUM_SLOTS:
+            raise VerificationError("No modules have been registered with Yukon. At least one module needs to be registered to enable the output")
 
         if raise_discrepency:
-            raise RuntimeError("Detected a different combination of modules than what was registered with Yukon. Please check the modules attached to your board and the program you are running.")
+            raise VerificationError("Detected a different combination of modules than what was registered with Yukon. Please check the modules attached to your board and the program you are running.")
 
         if raise_undetected:
-            raise RuntimeError("Some or all modules registered with Yukon have not been detected. Please check that the modules are correctly attached to your board or disable this warning.")
+            raise VerificationError("Some or all modules registered with Yukon have not been detected. Please check that the modules are correctly attached to your board or disable this warning.")
 
         if raise_unregistered:
-            raise RuntimeError("Detected modules that have not been registered with Yukon, which could behave unexpectedly when connected to power. Please remove these modules or disable this warning.")
+            raise VerificationError("Detected modules that have not been registered with Yukon, which could behave unexpectedly when connected to power. Please remove these modules or disable this warning.")
 
-        self.log_info()  # New line
+        logging.info()  # New line
 
     def initialise_modules(self, allow_unregistered=False, allow_undetected=False, allow_discrepencies=False, allow_no_modules=False):
         if self.is_main_output():
             raise RuntimeError("Cannot verify modules whilst the main output is active")
 
-        self.log_info(f"> Verifying modules")
+        logging.info(f"> Verifying modules")
 
         self.__verify_modules(allow_unregistered, allow_undetected, allow_discrepencies, allow_no_modules)
 
-        self.log_info(f"> Initialising modules")
+        logging.info(f"> Initialising modules")
 
-        slot_num = 1
         for slot, module in self.__slot_assignments.items():
             if module is not None:
-                self.log_info(f"[Slot{slot_num} '{module.NAME}'] Initialising ... ", end="")
+                logging.info(f"[Slot{slot.ID} '{module.NAME}'] Initialising ... ", end="")
                 module.initialise(slot, self.read_slot_adc1, self.read_slot_adc2)
-                self.log_info(f"done")
-            slot_num += 1
+                logging.info(f"done")
 
-        self.log_info()  # New line
+        logging.info()  # New line
 
     def is_pressed(self, switch):
         if switch is self.SWITCH_A_NAME:
@@ -361,13 +332,13 @@ class Yukon:
             dur = 100 * 1000 * 1000
             dur_b = 5 * 1000 * 1000
 
-            self.log_info("> Enabling output ...")
+            logging.info("> Enabling output ...")
             self.__enable_main_output()
             while True:
                 new_voltage = ((self.__shared_adc_voltage() - self.VOLTAGE_MIN_MEASURE) * self.VOLTAGE_MAX) / (self.VOLTAGE_MAX_MEASURE - self.VOLTAGE_MIN_MEASURE)
                 if new_voltage > self.ABSOLUTE_MAX_VOLTAGE_LIMIT:
                     self.disable_main_output()
-                    raise RuntimeError("[Yukon] Voltage exceeded user safe level! Turning off output")
+                    raise OverVoltageError("[Yukon] Input voltage exceeded a safe level! Turning off output")
 
                 new_time = time.monotonic_ns()
                 if abs(new_voltage - old_voltage) < 0.05:
@@ -380,27 +351,28 @@ class Yukon:
 
                 if new_time - start > dur:
                     self.disable_main_output()
-                    raise RuntimeError("[Yukon] Voltage did not stablise in an acceptable time. Turning off output")
+                    raise FaultError("[Yukon] Output voltage did not stablise in an acceptable time. Turning off output")
 
                 old_voltage = new_voltage
 
             if new_voltage < self.VOLTAGE_ZERO_LEVEL:
                 self.disable_main_output()
-                raise RuntimeError("[Yukon] No voltage detected! Make sure power is being provided to the XT-30 (yellow) connector")
-            elif new_voltage < self.VOLTAGE_LOWER_LIMIT:
+                raise UnderVoltageError("[Yukon] No input voltage detected! Make sure power is being provided to the XT-30 (yellow) connector")
+
+            if new_voltage < self.VOLTAGE_LOWER_LIMIT:
                 self.disable_main_output()
-                raise RuntimeError("[Yukon] Voltage below minimum operating level. Turning off output")
+                raise UnderVoltageError("[Yukon] Input voltage below minimum operating level. Turning off output")
 
             self.clear_readings()
 
-            self.log_info("> Output enabled")
+            logging.info("> Output enabled")
 
     def __enable_main_output(self):
         self.__main_en.value = True
 
     def disable_main_output(self):
         self.__main_en.value = False
-        self.log_info("> Output disabled")
+        logging.info("> Output disabled")
 
     def is_main_output(self):
         return self.__main_en.value
@@ -484,36 +456,33 @@ class Yukon:
         voltage = self.read_voltage()
         if voltage > self.__voltage_limit:
             self.disable_main_output()
-            raise RuntimeError(f"[Yukon] Voltage of {voltage}V exceeded the user set level of {self.__voltage_limit}V! Turning off output")
-        elif voltage < self.VOLTAGE_LOWER_LIMIT:
+            raise OverVoltageError(f"[Yukon] Voltage of {voltage}V exceeded the user set level of {self.__voltage_limit}V! Turning off output")
+
+        if voltage < self.VOLTAGE_LOWER_LIMIT:
             self.disable_main_output()
-            raise RuntimeError(f"[Yukon] Voltage of {voltage}V below minimum operating level. Turning off output")
+            raise UnderVoltageError(f"[Yukon] Voltage of {voltage}V below minimum operating level. Turning off output")
 
         current = self.read_current()
         if current > self.__current_limit:
             self.disable_main_output()
-            raise RuntimeError(f"[Yukon] Current of {current}A exceeded the user set level of {self.__current_limit}A! Turning off output")
+            raise OverCurrentError(f"[Yukon] Current of {current}A exceeded the user set level of {self.__current_limit}A! Turning off output")
 
         temperature = self.read_temperature()
         if temperature > self.__temperature_limit:
             self.disable_main_output()
-            raise RuntimeError(f"[Yukon] Temperature of {temperature}°C exceeded the user set level of {self.__temperature_limit}°C! Turning off output")
+            raise OverTemperatureError(f"[Yukon] Temperature of {temperature}°C exceeded the user set level of {self.__temperature_limit}°C! Turning off output")
 
         # Run some user action based on the latest readings
         if self.__monitor_action_callback is not None:
             self.__monitor_action_callback(voltage, current, temperature)
 
-        slot_num = 1
-        for slot, module in self.__slot_assignments.items():
+        for module in self.__slot_assignments.values():
             if module is not None:
                 try:
-                    message = module.monitor(logging_level=self.__logging_level)
-                    if message is not None:
-                        print(f"[Slot{slot_num} '{module.NAME}'] {message}")
-                except RuntimeError as e:
+                    module.monitor()
+                except Exception:
                     self.disable_main_output()
-                    raise RuntimeError(f"[Slot{slot_num} '{module.NAME}'] {str(e)}! Turning off output") from None
-            slot_num += 1
+                    raise  # Now the output is off, let the exception continue into user code
 
         self.__max_voltage = max(voltage, self.__max_voltage)
         self.__min_voltage = min(voltage, self.__min_voltage)
@@ -552,9 +521,10 @@ class Yukon:
         # Process any readings that need it (e.g. averages)
         self.process_readings()
 
-        if self.__logging_level >= self.LOG_DEBUG:
+        if logging.level >= logging.LOG_INFO:
             self.__print_readings(allowed, excluded)
 
+    # BUG This function seems to have an issue on early power up where remaining time is negative
     def monitor_until(self, time, allowed=None, excluded=None):
         if time < 0:
             raise ValueError("time must be non-negative")
@@ -577,17 +547,15 @@ class Yukon:
         # Process any readings that need it (e.g. averages)
         self.process_readings()
 
-        if self.__logging_level >= self.LOG_DEBUG:
+        if logging.level >= logging.LOG_INFO:
             self.__print_readings(allowed, excluded)
 
     def __print_readings(self, allowed=None, excluded=None):
         self.__print_dict(f"[Yukon]", self.get_readings(), allowed, excluded)
 
-        slot_num = 1
         for slot, module in self.__slot_assignments.items():
             if module is not None:
-                self.__print_dict(f"[Slot{slot_num}]", module.get_readings(), allowed, excluded)
-            slot_num += 1
+                self.__print_dict(f"[Slot{slot.ID}]", module.get_readings(), allowed, excluded)
         print()
 
     def get_readings(self):
@@ -609,7 +577,7 @@ class Yukon:
             self.__avg_current /= self.__count_avg
             self.__avg_temperature /= self.__count_avg
 
-        for slot, module in self.__slot_assignments.items():
+        for module in self.__slot_assignments.values():
             if module is not None:
                 module.process_readings()
 
@@ -630,7 +598,7 @@ class Yukon:
 
     def clear_readings(self):
         self.__clear_readings()
-        for slot, module in self.__slot_assignments.items():
+        for module in self.__slot_assignments.values():
             if module is not None:
                 module.clear_readings()
 
@@ -643,15 +611,6 @@ class Yukon:
                         print(f"{name} = {int(value)},", end=" ")  # Output 0 or 1 rather than True of False, so bools can appear on plotter charts
                     else:
                         print(f"{name} = {value},", end=" ")
-
-    def lcd_dc(self, value):
-        self.__lcd_dc.value = value
-
-    def lcd_cs(self, value):
-        self.__lcd_cs.value = value
-
-    def lcd_bl(self, value):
-        self.__lcd_bl.value = value
 
     def reset(self):
         # Only disable the output if enabled (avoids duplicate messages)
@@ -668,11 +627,7 @@ class Yukon:
         self.__leds[0].value = False
         self.__leds[1].value = False
 
-        self.__lcd_bl.value = False
-        self.__lcd_cs.value = False
-        self.__lcd_dc.value = False
-
         # Configure each module so they go back to their default states
-        for slot, module in self.__slot_assignments.items():
+        for  module in self.__slot_assignments.values():
             if module is not None and module.is_initialised():
                 module.configure()

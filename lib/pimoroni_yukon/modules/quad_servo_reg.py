@@ -7,6 +7,8 @@ from pwmio import PWMOut
 from digitalio import DigitalInOut
 from adafruit_motor.servo import Servo
 from collections import OrderedDict
+from pimoroni_yukon.errors import FaultError, OverTemperatureError
+import pimoroni_yukon.logging as logging
 
 
 class QuadServoRegModule(YukonModule):
@@ -27,11 +29,17 @@ class QuadServoRegModule(YukonModule):
         self.__last_pgood = False
 
     def initialise(self, slot, adc1_func, adc2_func):
-        # Create pwm objects
-        self.__pwms = [PWMOut(slot.FAST1, frequency=50),
-                       PWMOut(slot.FAST2, frequency=50),
-                       PWMOut(slot.FAST3, frequency=50),
-                       PWMOut(slot.FAST4, frequency=50)]
+        try:
+            # Create pwm objects
+            self.__pwms = [PWMOut(slot.FAST1, frequency=50),
+                           PWMOut(slot.FAST2, frequency=50),
+                           PWMOut(slot.FAST3, frequency=50),
+                           PWMOut(slot.FAST4, frequency=50)]
+        except ValueError as e:
+            if slot.ID <= 2 or slot.ID >= 5:
+                conflicting_slot = (((slot.ID - 1) + 4) % 8) + 1
+                raise type(e)(f"PWM channel(s) already in use. Check that the module in Slot{conflicting_slot} does not share the same PWM channel(s)") from None
+            raise type(e)(f"PWM channel(s) already in use. Check that a module in another slot does not share the same PWM channel(s)") from None
 
         # Create servo objects
         self.servos = [Servo(self.__pwms[i]) for i in range(len(self.__pwms))]
@@ -84,22 +92,20 @@ class QuadServoRegModule(YukonModule):
     def read_temperature(self):
         return self.__read_adc2_as_temp()
 
-    def monitor(self, logging_level=0):
+    def monitor(self):
         pgood = self.read_power_good()
         if pgood is not True:
             if self.halt_on_not_pgood:
-                raise RuntimeError(f"Power is not good")
+                raise FaultError(self.__message_header() + f"Power is not good! Turning off output")
 
         temperature = self.read_temperature()
         if temperature > self.TEMPERATURE_THRESHOLD:
-            raise RuntimeError(f"Temperature of {temperature}°C exceeded the user set level of {self.TEMPERATURE_THRESHOLD}°C")
+            raise OverTemperatureError(self.__message_header() + f"Temperature of {temperature}°C exceeded the user set level of {self.TEMPERATURE_THRESHOLD}°C! Turning off output")
 
-        message = None
-        if logging_level >= 1:
-            if self.__last_pgood is True and pgood is not True:
-                message = f"Power is not good"
-            elif self.__last_pgood is not True and pgood is True:
-                message = f"Power is good"
+        if self.__last_pgood is True and pgood is not True:
+            logging.warn(self.__message_header() + f"Power is not good")
+        elif self.__last_pgood is not True and pgood is True:
+            logging.warn(self.__message_header() + f"Power is good")
 
         # Run some user action based on the latest readings
         if self.__monitor_action_callback is not None:
@@ -112,8 +118,6 @@ class QuadServoRegModule(YukonModule):
         self.__min_temperature = min(temperature, self.__min_temperature)
         self.__avg_temperature += temperature
         self.__count_avg += 1
-
-        return message
 
     def get_readings(self):
         return OrderedDict({

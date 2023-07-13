@@ -7,6 +7,7 @@ from pwmio import PWMOut
 from digitalio import DigitalInOut
 from adafruit_motor.motor import DCMotor, SLOW_DECAY
 from collections import OrderedDict
+from pimoroni_yukon.errors import FaultError, OverCurrentError, OverTemperatureError
 
 
 class BigMotorModule(YukonModule):
@@ -29,9 +30,15 @@ class BigMotorModule(YukonModule):
         self.__frequency = frequency
 
     def initialise(self, slot, adc1_func, adc2_func):
-        # Create pwm objects
-        self.__pwm_p = PWMOut(slot.FAST4, frequency=self.__frequency)
-        self.__pwm_n = PWMOut(slot.FAST3, frequency=self.__frequency)
+        try:
+            # Create pwm objects
+            self.__pwm_p = PWMOut(slot.FAST4, frequency=self.__frequency)
+            self.__pwm_n = PWMOut(slot.FAST3, frequency=self.__frequency)
+        except ValueError as e:
+            if slot.ID <= 2 or slot.ID >= 5:
+                conflicting_slot = (((slot.ID - 1) + 4) % 8) + 1
+                raise type(e)(f"PWM channel(s) already in use. Check that the module in Slot{conflicting_slot} does not share the same PWM channel(s)") from None
+            raise type(e)(f"PWM channel(s) already in use. Check that a module in another slot does not share the same PWM channel(s)") from None
 
         # Create motor object
         self.motor = DCMotor(self.__pwm_p, self.__pwm_n)
@@ -72,18 +79,18 @@ class BigMotorModule(YukonModule):
     def read_temperature(self):
         return self.__read_adc2_as_temp()
 
-    def monitor(self, logging_level=0):
+    def monitor(self):
         fault = self.read_fault()
         if fault is True:
-            raise RuntimeError(f"Fault detected on motor driver")
+            raise FaultError(self.__message_header() + f"Fault detected on motor driver")
 
         current = self.read_current()
         if current > self.CURRENT_THRESHOLD:
-            raise RuntimeError(f"Current of {current}A exceeded the user set level of {self.CURRENT_THRESHOLD}A")
+            raise OverCurrentError(self.__message_header() + f"Current of {current}A exceeded the user set level of {self.CURRENT_THRESHOLD}A! Turning off output")
 
         temperature = self.read_temperature()
         if temperature > self.TEMPERATURE_THRESHOLD:
-            raise RuntimeError(f"Temperature of {temperature}°C exceeded the user set level of {self.TEMPERATURE_THRESHOLD}°C")
+            raise OverTemperatureError(self.__message_header() + f"Temperature of {temperature}°C exceeded the user set level of {self.TEMPERATURE_THRESHOLD}°C! Turning off output")
 
         # Run some user action based on the latest readings
         if self.__monitor_action_callback is not None:
@@ -100,8 +107,6 @@ class BigMotorModule(YukonModule):
         self.__avg_temperature += temperature
 
         self.__count_avg += 1
-
-        return None
 
     def get_readings(self):
         return OrderedDict({

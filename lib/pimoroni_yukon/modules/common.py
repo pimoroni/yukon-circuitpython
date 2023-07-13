@@ -70,8 +70,8 @@ class YukonModule:
 
         self.__monitor_action_callback = callback_function
 
-    def monitor(self, logging_level=0):
-        return None
+    def monitor(self):
+        pass
 
     def get_readings(self):
         return OrderedDict()
@@ -83,3 +83,6 @@ class YukonModule:
     def clear_readings(self):
         # Clear any readings that may accumulate, such as min, max, or average
         pass
+
+    def __message_header(self):
+        return f"[Slot{self.slot.ID} '{self.NAME}'] "
