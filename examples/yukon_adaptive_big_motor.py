@@ -14,7 +14,7 @@ yukon = Yukon()
 motor_modules = []
 
 try:
-    # Create a Quad Servo Direct class for each populated module slot
+    # Create a Big Motor Module instance for each populated module slot
     for slot in yukon.find_slots_with_module(BigMotorModule):
         big_motor = BigMotorModule()
         yukon.register_with_slot(big_motor, slot)
