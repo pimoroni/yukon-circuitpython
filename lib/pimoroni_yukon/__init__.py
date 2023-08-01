@@ -532,7 +532,7 @@ class Yukon:
         # Clear any readings from previous monitoring attempts
         self.clear_readings()
 
-        # Ensure that at least one monitor check is performed
+        # Perform a single monitoring check
         self.monitor()
 
         # Process any readings that need it (e.g. averages)
