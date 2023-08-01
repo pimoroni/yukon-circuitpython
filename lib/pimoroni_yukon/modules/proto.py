@@ -2,7 +2,8 @@
 #
 # SPDX-License-Identifier: MIT
 
-from .common import *
+from .common import YukonModule, LOW, HIGH
+
 
 class ProtoPotModule(YukonModule):
     NAME = "Proto Potentiometer"

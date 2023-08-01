@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: MIT
 
-from .common import *
+from .common import YukonModule, ADC_HIGH, HIGH
 from pwmio import PWMOut
 from digitalio import DigitalInOut
 from collections import OrderedDict
@@ -44,7 +44,7 @@ class DualMotorModule(YukonModule):
             if slot.ID <= 2 or slot.ID >= 5:
                 conflicting_slot = (((slot.ID - 1) + 4) % 8) + 1
                 raise type(e)(f"PWM channel(s) already in use. Check that the module in Slot{conflicting_slot} does not share the same PWM channel(s)") from None
-            raise type(e)(f"PWM channel(s) already in use. Check that a module in another slot does not share the same PWM channel(s)") from None
+            raise type(e)("PWM channel(s) already in use. Check that a module in another slot does not share the same PWM channel(s)") from None
 
         if self.__motor_type == self.DUAL:
             from adafruit_motor.motor import DCMotor
@@ -116,7 +116,7 @@ class DualMotorModule(YukonModule):
     def monitor(self):
         fault = self.read_fault()
         if fault is True:
-            raise FaultError(self.__message_header() + f"Fault detected on motor driver! Turning off output")
+            raise FaultError(self.__message_header() + "Fault detected on motor driver! Turning off output")
 
         temperature = self.read_temperature()
         if temperature > self.TEMPERATURE_THRESHOLD:

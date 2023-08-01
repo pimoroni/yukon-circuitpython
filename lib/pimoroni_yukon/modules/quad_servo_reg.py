@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: MIT
 
-from .common import *
+from .common import YukonModule, ADC_FLOAT, LOW, HIGH
 from pwmio import PWMOut
 from digitalio import DigitalInOut
 from adafruit_motor.servo import Servo
@@ -39,7 +39,7 @@ class QuadServoRegModule(YukonModule):
             if slot.ID <= 2 or slot.ID >= 5:
                 conflicting_slot = (((slot.ID - 1) + 4) % 8) + 1
                 raise type(e)(f"PWM channel(s) already in use. Check that the module in Slot{conflicting_slot} does not share the same PWM channel(s)") from None
-            raise type(e)(f"PWM channel(s) already in use. Check that a module in another slot does not share the same PWM channel(s)") from None
+            raise type(e)("PWM channel(s) already in use. Check that a module in another slot does not share the same PWM channel(s)") from None
 
         # Create servo objects
         self.servos = [Servo(self.__pwms[i]) for i in range(len(self.__pwms))]
@@ -96,16 +96,16 @@ class QuadServoRegModule(YukonModule):
         pgood = self.read_power_good()
         if pgood is not True:
             if self.halt_on_not_pgood:
-                raise FaultError(self.__message_header() + f"Power is not good! Turning off output")
+                raise FaultError(self.__message_header() + "Power is not good! Turning off output")
 
         temperature = self.read_temperature()
         if temperature > self.TEMPERATURE_THRESHOLD:
             raise OverTemperatureError(self.__message_header() + f"Temperature of {temperature}°C exceeded the user set level of {self.TEMPERATURE_THRESHOLD}°C! Turning off output")
 
         if self.__last_pgood is True and pgood is not True:
-            logging.warn(self.__message_header() + f"Power is not good")
+            logging.warn(self.__message_header() + "Power is not good")
         elif self.__last_pgood is not True and pgood is True:
-            logging.warn(self.__message_header() + f"Power is good")
+            logging.warn(self.__message_header() + "Power is good")
 
         # Run some user action based on the latest readings
         if self.__monitor_action_callback is not None:

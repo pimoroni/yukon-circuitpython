@@ -7,12 +7,12 @@ import math
 import board
 import digitalio
 import analogio
-import supervisor
 import tca
 
 from pimoroni_yukon.modules import KNOWN_MODULES, ADC_FLOAT, ADC_LOW, ADC_HIGH
 import pimoroni_yukon.logging as logging
-from pimoroni_yukon.errors import *
+from pimoroni_yukon.errors import OverVoltageError, UnderVoltageError, OverCurrentError, OverTemperatureError, FaultError, VerificationError
+from pimoroni_yukon.timing import ticks_ms, ticks_add, ticks_diff, TICKS_PERIOD
 from collections import OrderedDict
 
 
@@ -249,7 +249,7 @@ class Yukon:
                     if slot not in allow_undetected:
                         raise_undetected = True
                 else:
-                    logging.info(f"Module slot is empty.")
+                    logging.info("Module slot is empty.")
                     unregistered_slots += 1
             else:
                 if type(module) is detected:
@@ -283,17 +283,17 @@ class Yukon:
         if self.is_main_output():
             raise RuntimeError("Cannot verify modules whilst the main output is active")
 
-        logging.info(f"> Verifying modules")
+        logging.info("> Verifying modules")
 
         self.__verify_modules(allow_unregistered, allow_undetected, allow_discrepencies, allow_no_modules)
 
-        logging.info(f"> Initialising modules")
+        logging.info("> Initialising modules")
 
         for slot, module in self.__slot_assignments.items():
             if module is not None:
                 logging.info(f"[Slot{slot.ID} '{module.NAME}'] Initialising ... ", end="")
                 module.initialise(slot, self.read_slot_adc1, self.read_slot_adc2)
-                logging.info(f"done")
+                logging.info("done")
 
         logging.info()  # New line
 
@@ -443,9 +443,6 @@ class Yukon:
         self.__select_address(slot.ADC2_TEMP_ADDR)
         return self.__shared_adc_voltage()
 
-    def time(self):
-        return supervisor.ticks_ms() / 1000.0
-
     def assign_monitor_action(self, callback_function):
         if not None and not callable(callback_function):
             raise TypeError("callback is not callable or None")
@@ -499,24 +496,31 @@ class Yukon:
         self.__count_avg += 1
 
     def monitored_sleep(self, seconds, allowed=None, excluded=None):
-        if seconds < 0:
+        # Convert and handle the sleep as milliseconds
+        self.monitored_sleep_ms(1000.0 * seconds + 0.5, allowed=allowed, excluded=excluded)
+
+    def monitored_sleep_ms(self, ms, allowed=None, excluded=None):
+        if ms < 0:
             raise ValueError("sleep length must be non-negative")
 
-        # Calculate the time this sleep should end at
-        remaining_ms = int(1000.0 * seconds + 0.5)
-        end_ms = supervisor.ticks_ms() + remaining_ms
+        # Calculate the time this sleep should end at, and monitor until then
+        self.monitor_until_ms(ticks_add(ticks_ms(), int(ms)), allowed=allowed, excluded=excluded)
+
+    def monitor_until_ms(self, end_ms, allowed=None, excluded=None):
+        if end_ms < 0 or end_ms >= TICKS_PERIOD:
+            raise ValueError("end_ms out or range. Must be a value obtained from supervisor.ticks_ms()")
 
         # Clear any readings from previous monitoring attempts
         self.clear_readings()
 
         # Ensure that at least one monitor check is performed
         self.monitor()
-        remaining_ms = end_ms - supervisor.ticks_ms()
+        remaining_ms = ticks_diff(end_ms, ticks_ms())
 
         # Perform any subsequent monitors until the end time is reached
         while remaining_ms > 0:
             self.monitor()
-            remaining_ms = end_ms - supervisor.ticks_ms()
+            remaining_ms = ticks_diff(end_ms, ticks_ms())
 
         # Process any readings that need it (e.g. averages)
         self.process_readings()
@@ -524,25 +528,12 @@ class Yukon:
         if logging.level >= logging.LOG_INFO:
             self.__print_readings(allowed, excluded)
 
-    # BUG This function seems to have an issue on early power up where remaining time is negative
-    def monitor_until(self, time, allowed=None, excluded=None):
-        if time < 0:
-            raise ValueError("time must be non-negative")
-
-        # Calculate the time this sleep should end at
-        end_ms = int(1000.0 * time)
-
+    def monitor_once(self, allowed=None, excluded=None):
         # Clear any readings from previous monitoring attempts
         self.clear_readings()
 
         # Ensure that at least one monitor check is performed
         self.monitor()
-        remaining_ms = end_ms - supervisor.ticks_ms()
-
-        # Perform any subsequent monitors until the end time is reached
-        while remaining_ms > 0:
-            self.monitor()
-            remaining_ms = end_ms - supervisor.ticks_ms()
 
         # Process any readings that need it (e.g. averages)
         self.process_readings()
@@ -551,7 +542,7 @@ class Yukon:
             self.__print_readings(allowed, excluded)
 
     def __print_readings(self, allowed=None, excluded=None):
-        self.__print_dict(f"[Yukon]", self.get_readings(), allowed, excluded)
+        self.__print_dict("[Yukon]", self.get_readings(), allowed, excluded)
 
         for slot, module in self.__slot_assignments.items():
             if module is not None:
@@ -628,6 +619,6 @@ class Yukon:
         self.__leds[1].value = False
 
         # Configure each module so they go back to their default states
-        for  module in self.__slot_assignments.values():
+        for module in self.__slot_assignments.values():
             if module is not None and module.is_initialised():
                 module.configure()

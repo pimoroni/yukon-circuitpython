@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: MIT
 
-from .common import *
+from .common import YukonModule, ADC_LOW, HIGH
 from digitalio import DigitalInOut, Pull
 from collections import OrderedDict
 from pimoroni_yukon.errors import FaultError, OverTemperatureError
@@ -77,16 +77,16 @@ class LEDStripModule(YukonModule):
         pgood = self.read_power_good()
         if pgood is not True:
             if self.halt_on_not_pgood:
-                raise FaultError(self.__message_header() + f"Power is not good! Turning off output")
+                raise FaultError(self.__message_header() + "Power is not good! Turning off output")
 
         temperature = self.read_temperature()
         if temperature > self.TEMPERATURE_THRESHOLD:
             raise OverTemperatureError(self.__message_header() + f"Temperature of {temperature}°C exceeded the user set level of {self.TEMPERATURE_THRESHOLD}°C! Turning off output")
 
         if self.__last_pgood is True and pgood is not True:
-            logging.warn(self.__message_header() + f"Power is not good")
+            logging.warn(self.__message_header() + "Power is not good")
         elif self.__last_pgood is not True and pgood is True:
-            logging.warn(self.__message_header() + f"Power is good")
+            logging.warn(self.__message_header() + "Power is good")
 
         # Run some user action based on the latest readings
         if self.__monitor_action_callback is not None:

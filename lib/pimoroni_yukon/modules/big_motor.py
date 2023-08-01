@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: MIT
 
-from .common import *
+from .common import YukonModule, ADC_LOW, LOW, HIGH
 from pwmio import PWMOut
 from digitalio import DigitalInOut
 from adafruit_motor.motor import DCMotor, SLOW_DECAY
@@ -38,7 +38,7 @@ class BigMotorModule(YukonModule):
             if slot.ID <= 2 or slot.ID >= 5:
                 conflicting_slot = (((slot.ID - 1) + 4) % 8) + 1
                 raise type(e)(f"PWM channel(s) already in use. Check that the module in Slot{conflicting_slot} does not share the same PWM channel(s)") from None
-            raise type(e)(f"PWM channel(s) already in use. Check that a module in another slot does not share the same PWM channel(s)") from None
+            raise type(e)("PWM channel(s) already in use. Check that a module in another slot does not share the same PWM channel(s)") from None
 
         # Create motor object
         self.motor = DCMotor(self.__pwm_p, self.__pwm_n)
@@ -82,7 +82,7 @@ class BigMotorModule(YukonModule):
     def monitor(self):
         fault = self.read_fault()
         if fault is True:
-            raise FaultError(self.__message_header() + f"Fault detected on motor driver")
+            raise FaultError(self.__message_header() + "Fault detected on motor driver")
 
         current = self.read_current()
         if current > self.CURRENT_THRESHOLD:
