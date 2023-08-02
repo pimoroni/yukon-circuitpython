@@ -252,18 +252,18 @@ class Yukon:
                     logging.info("Module slot is empty.")
                     unregistered_slots += 1
             else:
-                if type(module) is detected:
-                    logging.info(f"'{module.NAME}' module detected and registered.")
-                else:
-                    if module is not None:
+                if module is not None:
+                    if type(module) is detected:
+                        logging.info(f"'{module.NAME}' module detected and registered.")
+                    else:
                         logging.info(f"Module discrepency! Expected a '{module.NAME}' module, but detected a '{detected.NAME}' module.")
                         if slot not in allow_discrepencies:
                             raise_discrepency = True
-                    else:
-                        logging.info(f"'{detected.NAME}' module detected but not registered.", sep="")
-                        if slot not in allow_unregistered:
-                            raise_unregistered = True
-                        unregistered_slots += 1
+                else:
+                    logging.info(f"'{detected.NAME}' module detected but not registered.")
+                    if slot not in allow_unregistered:
+                        raise_unregistered = True
+                    unregistered_slots += 1
 
         if not allow_no_modules and unregistered_slots == self.NUM_SLOTS:
             raise VerificationError("No modules have been registered with Yukon. At least one module needs to be registered to enable the output")
