@@ -39,9 +39,6 @@ class QuadServoDirectModule(YukonModule):
         # Create servo objects
         self.servos = [Servo(self.__pwms[i]) for i in range(len(self.__pwms))]
 
-        # Configure servos
-        self.configure()
-
         # Pass the slot and adc functions up to the parent now that module specific initialisation has finished
         super().initialise(slot, adc1_func, adc2_func)
 

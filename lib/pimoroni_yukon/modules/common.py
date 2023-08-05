@@ -38,6 +38,9 @@ class YukonModule:
         self.__adc1_func = adc1_func
         self.__adc2_func = adc2_func
 
+        # Configure any objects created during initialisation
+        self.configure()
+
     def is_initialised(self):
         return self.slot is not None
 

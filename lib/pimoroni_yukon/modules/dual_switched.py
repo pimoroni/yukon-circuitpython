@@ -38,9 +38,6 @@ class DualSwitchedModule(YukonModule):
         self.__power_good = (DigitalInOut(slot.SLOW1),
                              DigitalInOut(slot.SLOW3))
 
-        # Configure switch and power pins
-        self.configure()
-
         # Pass the slot and adc functions up to the parent now that module specific initialisation has finished
         super().initialise(slot, adc1_func, adc2_func)
 

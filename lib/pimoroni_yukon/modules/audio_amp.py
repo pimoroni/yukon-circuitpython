@@ -154,9 +154,6 @@ class AudioAmpModule(YukonModule):
         self.I2S_CLK = slot.FAST2
         self.I2S_FS = slot.FAST3
 
-        # Configure i2c and enable pins
-        self.configure()
-
         # Pass the slot and adc functions up to the parent now that module specific initialisation has finished
         super().initialise(slot, adc1_func, adc2_func)
 

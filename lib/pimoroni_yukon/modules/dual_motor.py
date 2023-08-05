@@ -22,6 +22,7 @@ class DualMotorModule(YukonModule):
     # | ADC1  | SLOW1 | SLOW2 | SLOW3 | Module               | Condition (if any)          |
     # |-------|-------|-------|-------|----------------------|-----------------------------|
     # | HIGH  | 1     | 1     | 1     | Dual Motor           |                             |
+    # | HIGH  | 0     | 1     | 1     | Dual Motor           |                             |
     def is_module(adc_level, slow1, slow2, slow3):
         return adc_level == ADC_HIGH and slow2 is HIGH and slow3 is HIGH
 
@@ -60,9 +61,6 @@ class DualMotorModule(YukonModule):
         self.__motors_decay = DigitalInOut(slot.SLOW1)
         self.__motors_toff = DigitalInOut(slot.SLOW2)
         self.__motors_en = DigitalInOut(slot.SLOW3)
-
-        # Configure motors
-        self.configure()
 
         # Pass the slot and adc functions up to the parent now that module specific initialisation has finished
         super().initialise(slot, adc1_func, adc2_func)

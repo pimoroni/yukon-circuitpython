@@ -48,9 +48,6 @@ class LEDStripModule(YukonModule):
         self.__power_good = DigitalInOut(slot.FAST1)
         self.__power_en = DigitalInOut(slot.FAST2)
 
-        # Configure strip and power pins
-        self.configure()
-
         # Pass the slot and adc functions up to the parent now that module specific initialisation has finished
         super().initialise(slot, adc1_func, adc2_func)
 

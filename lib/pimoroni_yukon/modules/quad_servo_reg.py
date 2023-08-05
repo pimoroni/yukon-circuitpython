@@ -48,9 +48,6 @@ class QuadServoRegModule(YukonModule):
         self.__power_en = DigitalInOut(slot.SLOW1)
         self.__power_good = DigitalInOut(slot.SLOW2)
 
-        # Configure servos and power pins
-        self.configure()
-
         # Pass the slot and adc functions up to the parent now that module specific initialisation has finished
         super().initialise(slot, adc1_func, adc2_func)
 

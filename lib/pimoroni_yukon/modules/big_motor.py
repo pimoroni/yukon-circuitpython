@@ -12,6 +12,7 @@ from pimoroni_yukon.errors import FaultError, OverCurrentError, OverTemperatureE
 
 class BigMotorModule(YukonModule):
     NAME = "Big Motor + Encoder"
+    NUM_MOTORS = 1
     DEFAULT_FREQUENCY = 25000
     TEMPERATURE_THRESHOLD = 50.0
     CURRENT_THRESHOLD = 25.0
@@ -47,9 +48,6 @@ class BigMotorModule(YukonModule):
         self.__motor_en = DigitalInOut(slot.SLOW3)
         self.__motor_nfault = DigitalInOut(slot.SLOW2)
 
-        # Configure motor
-        self.configure()
-
         # Pass the slot and adc functions up to the parent now that module specific initialisation has finished
         super().initialise(slot, adc1_func, adc2_func)
 
@@ -82,7 +80,7 @@ class BigMotorModule(YukonModule):
     def monitor(self):
         fault = self.read_fault()
         if fault is True:
-            raise FaultError(self.__message_header() + "Fault detected on motor driver")
+            raise FaultError(self.__message_header() + "Fault detected on motor driver! Turning off output")
 
         current = self.read_current()
         if current > self.CURRENT_THRESHOLD:
