@@ -23,6 +23,7 @@ class DualMotorModule(YukonModule):
     # |-------|-------|-------|-------|----------------------|-----------------------------|
     # | HIGH  | 1     | 1     | 1     | Dual Motor           |                             |
     # | HIGH  | 0     | 1     | 1     | Dual Motor           |                             |
+    @staticmethod
     def is_module(adc_level, slow1, slow2, slow3):
         return adc_level == ADC_HIGH and slow2 is HIGH and slow3 is HIGH
 
@@ -65,7 +66,7 @@ class DualMotorModule(YukonModule):
         # Pass the slot and adc functions up to the parent now that module specific initialisation has finished
         super().initialise(slot, adc1_func, adc2_func)
 
-    def configure(self):
+    def reset(self):
         if self.__motor_type == self.DUAL:
             for motor in self.motors:
                 motor.throttle = None
@@ -118,7 +119,7 @@ class DualMotorModule(YukonModule):
 
         temperature = self.read_temperature()
         if temperature > self.TEMPERATURE_THRESHOLD:
-            raise OverTemperatureError(self.__message_header() + f"Temperature of {temperature}°C exceeded the user set level of {self.TEMPERATURE_THRESHOLD}°C! Turning off output")
+            raise OverTemperatureError(self.__message_header() + f"Temperature of {temperature}°C exceeded the limit of {self.TEMPERATURE_THRESHOLD}°C! Turning off output")
 
         # Run some user action based on the latest readings
         if self.__monitor_action_callback is not None:

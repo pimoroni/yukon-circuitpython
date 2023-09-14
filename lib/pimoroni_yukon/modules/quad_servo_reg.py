@@ -19,6 +19,7 @@ class QuadServoRegModule(YukonModule):
     # | ADC1  | SLOW1 | SLOW2 | SLOW3 | Module               | Condition (if any)          |
     # |-------|-------|-------|-------|----------------------|-----------------------------|
     # | FLOAT | 0     | 1     | 0     | Quad Servo Regulated |                             |
+    @staticmethod
     def is_module(adc_level, slow1, slow2, slow3):
         return adc_level == ADC_FLOAT and slow1 is LOW and slow2 is HIGH and slow3 is LOW
 
@@ -51,7 +52,7 @@ class QuadServoRegModule(YukonModule):
         # Pass the slot and adc functions up to the parent now that module specific initialisation has finished
         super().initialise(slot, adc1_func, adc2_func)
 
-    def configure(self):
+    def reset(self):
         for servo in self.servos:
             servo.angle = None
 
@@ -97,7 +98,7 @@ class QuadServoRegModule(YukonModule):
 
         temperature = self.read_temperature()
         if temperature > self.TEMPERATURE_THRESHOLD:
-            raise OverTemperatureError(self.__message_header() + f"Temperature of {temperature}°C exceeded the user set level of {self.TEMPERATURE_THRESHOLD}°C! Turning off output")
+            raise OverTemperatureError(self.__message_header() + f"Temperature of {temperature}°C exceeded the limit of {self.TEMPERATURE_THRESHOLD}°C! Turning off output")
 
         if self.__last_pgood is True and pgood is not True:
             logging.warn(self.__message_header() + "Power is not good")

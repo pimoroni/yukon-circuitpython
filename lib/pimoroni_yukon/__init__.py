@@ -3,30 +3,22 @@
 # SPDX-License-Identifier: MIT
 
 import time
-import math
 import board
 import digitalio
 import analogio
 import tca
 
-from pimoroni_yukon.modules import KNOWN_MODULES, ADC_FLOAT, ADC_LOW, ADC_HIGH
+from pimoroni_yukon.modules import KNOWN_MODULES
+from pimoroni_yukon.modules.common import ADC_FLOAT, ADC_LOW, ADC_HIGH
 import pimoroni_yukon.logging as logging
 from pimoroni_yukon.errors import OverVoltageError, UnderVoltageError, OverCurrentError, OverTemperatureError, FaultError, VerificationError
 from pimoroni_yukon.timing import ticks_ms, ticks_add, ticks_diff, TICKS_PERIOD
+from pimoroni_yukon.conversion import u16_to_voltage_in, u16_to_voltage_out, u16_to_current, analog_to_temp
 from collections import OrderedDict
 
 
 class Yukon:
     """Yukon class."""
-
-    VOLTAGE_MAX = 17.0
-    VOLTAGE_MIN_MEASURE = 0.030
-    VOLTAGE_MAX_MEASURE = 2.294
-
-    CURRENT_MAX = 10.0
-    CURRENT_MIN_MEASURE = 0.0147
-    CURRENT_MAX_MEASURE = 0.9307
-
     SWITCH_A = 0
     SWITCH_B = 1
     SWITCH_A_NAME = 'A'
@@ -37,13 +29,17 @@ class Yukon:
     DEFAULT_VOLTAGE_LIMIT = 17.2
     VOLTAGE_LOWER_LIMIT = 4.8
     VOLTAGE_ZERO_LEVEL = 0.05
+    VOLTAGE_SHORT_LEVEL = 0.5
     DEFAULT_CURRENT_LIMIT = 20
-    DEFAULT_TEMPERATURE_LIMIT = 90
+    DEFAULT_TEMPERATURE_LIMIT = 80
     ABSOLUTE_MAX_VOLTAGE_LIMIT = 18
 
     DETECTION_SAMPLES = 64
     DETECTION_ADC_LOW = 0.1
     DETECTION_ADC_HIGH = 3.2
+
+    OUTPUT_STABLISE_TIMEOUT_NS = 100 * 1000 * 1000
+    OUTPUT_STABLISE_TIME_NS = 5 * 1000 * 1000
 
     def __init__(self, voltage_limit=DEFAULT_VOLTAGE_LIMIT, current_limit=DEFAULT_CURRENT_LIMIT, temperature_limit=DEFAULT_TEMPERATURE_LIMIT, logging_level=logging.LOG_INFO):
         self.__voltage_limit = min(voltage_limit, self.ABSOLUTE_MAX_VOLTAGE_LIMIT)
@@ -62,25 +58,25 @@ class Yukon:
 
         # Main output enable
         self.__main_en = digitalio.DigitalInOut(board.MAIN_EN)
-        self.__main_en.direction = digitalio.Direction.OUTPUT
+        self.__main_en.switch_to_output(False)
 
         # User/Boot switch
         self.__sw_boot = digitalio.DigitalInOut(board.USER_SW)
-        self.__sw_boot.direction = digitalio.Direction.INPUT
+        self.__sw_boot.switch_to_input()
 
         # ADC mux enable pins
         self.__adc_mux_ens = (digitalio.DigitalInOut(board.ADC_MUX_EN_1),
                               digitalio.DigitalInOut(board.ADC_MUX_EN_2))
-        self.__adc_mux_ens[0].direction = digitalio.Direction.OUTPUT
-        self.__adc_mux_ens[1].direction = digitalio.Direction.OUTPUT
+        self.__adc_mux_ens[0].switch_to_output(False)
+        self.__adc_mux_ens[1].switch_to_output(False)
 
         # ADC mux address pins
         self.__adc_mux_addrs = (digitalio.DigitalInOut(board.ADC_ADDR_1),
                                 digitalio.DigitalInOut(board.ADC_ADDR_2),
                                 digitalio.DigitalInOut(board.ADC_ADDR_3))
-        self.__adc_mux_addrs[0].direction = digitalio.Direction.OUTPUT
-        self.__adc_mux_addrs[1].direction = digitalio.Direction.OUTPUT
-        self.__adc_mux_addrs[2].direction = digitalio.Direction.OUTPUT
+        self.__adc_mux_addrs[0].switch_to_output(False)
+        self.__adc_mux_addrs[1].switch_to_output(False)
+        self.__adc_mux_addrs[2].switch_to_output(False)
 
         self.__adc_io_chip = tca.get_chip(board.ADC_ADDR_1)
         self.__adc_io_ens_addrs = (1 << tca.get_number(board.ADC_MUX_EN_1),
@@ -94,14 +90,14 @@ class Yukon:
         # User switches
         self.__switches = (digitalio.DigitalInOut(board.SW_A),
                            digitalio.DigitalInOut(board.SW_B))
-        self.__switches[0].direction = digitalio.Direction.INPUT
-        self.__switches[1].direction = digitalio.Direction.INPUT
+        self.__switches[0].switch_to_input()
+        self.__switches[1].switch_to_input()
 
         # User LEDs
         self.__leds = (digitalio.DigitalInOut(board.LED_A),
                        digitalio.DigitalInOut(board.LED_B))
-        self.__leds[0].direction = digitalio.Direction.OUTPUT
-        self.__leds[1].direction = digitalio.Direction.OUTPUT
+        self.__leds[0].switch_to_output(False)
+        self.__leds[1].switch_to_output(False)
 
         # Shared analog input
         self.__shared_adc = analogio.AnalogIn(board.SHARED_ADC)
@@ -110,11 +106,31 @@ class Yukon:
 
         self.__monitor_action_callback = None
 
+    def reset(self):
+        # Only disable the output if enabled (avoids duplicate messages)
+        if self.is_main_output_enabled() is True:
+            self.disable_main_output()
+
+        self.__adc_mux_ens[0].value = False
+        self.__adc_mux_ens[1].value = False
+
+        self.__adc_mux_addrs[0].value = False
+        self.__adc_mux_addrs[1].value = False
+        self.__adc_mux_addrs[2].value = False
+
+        self.__leds[0].value = False
+        self.__leds[1].value = False
+
+        # Configure each module so they go back to their default states
+        for module in self.__slot_assignments.values():
+            if module is not None and module.is_initialised():
+                module.reset()
+
     def change_logging(self, logging_level):
         logging.level = logging_level
 
     def __check_slot(self, slot):
-        if type(slot) is int:
+        if isinstance(slot, int):
             if slot < 1 or slot > self.NUM_SLOTS:
                 raise ValueError("slot index out of range. Expected 1 to 6, or a slot object")
 
@@ -126,7 +142,7 @@ class Yukon:
         return slot
 
     def find_slots_with_module(self, module_type):
-        if self.is_main_output():
+        if self.is_main_output_enabled():
             raise RuntimeError("Cannot find slots with modules whilst the main output is active")
 
         logging.info(f"> Finding slots with '{module_type.NAME}' module")
@@ -145,7 +161,7 @@ class Yukon:
         return slots
 
     def register_with_slot(self, module, slot):
-        if self.is_main_output():
+        if self.is_main_output_enabled():
             raise RuntimeError("Cannot register modules with slots whilst the main output is active")
 
         slot = self.__check_slot(slot)
@@ -156,7 +172,7 @@ class Yukon:
             raise ValueError("The selected slot is already populated")
 
     def deregister_slot(self, slot):
-        if self.is_main_output():
+        if self.is_main_output_enabled():
             raise RuntimeError("Cannot deregister module slots whilst the main output is active")
 
         slot = self.__check_slot(slot)
@@ -174,13 +190,13 @@ class Yukon:
 
     def __detect_module(self, slot):
         slow1 = digitalio.DigitalInOut(slot.SLOW1)
-        slow1.direction = digitalio.Direction.INPUT
+        slow1.switch_to_input()
 
         slow2 = digitalio.DigitalInOut(slot.SLOW2)
-        slow2.direction = digitalio.Direction.INPUT
+        slow2.switch_to_input()
 
         slow3 = digitalio.DigitalInOut(slot.SLOW3)
-        slow3.direction = digitalio.Direction.INPUT
+        slow3.switch_to_input()
 
         self.__select_address(slot.ADC1_ADDR)
         adc_val = 0
@@ -206,7 +222,7 @@ class Yukon:
         return detected
 
     def detect_module(self, slot):
-        if self.is_main_output():
+        if self.is_main_output_enabled():
             raise RuntimeError("Cannot detect modules whilst the main output is active")
 
         slot = self.__check_slot(slot)
@@ -214,13 +230,13 @@ class Yukon:
         return self.__detect_module(slot)
 
     def __expand_slot_list(self, slot_list):
-        if type(slot_list) is bool:
+        if isinstance(slot_list, bool):
             if slot_list:
                 return list(self.__slot_assignments.keys())
             else:
                 return []
 
-        if type(slot_list) in (list, tuple):
+        if isinstance(slot_list, (list, tuple)):
             exp_list = []
             for slot in slot_list:
                 exp_list.append(self.__check_slot(slot))
@@ -280,7 +296,7 @@ class Yukon:
         logging.info()  # New line
 
     def initialise_modules(self, allow_unregistered=False, allow_undetected=False, allow_discrepencies=False, allow_no_modules=False):
-        if self.is_main_output():
+        if self.is_main_output_enabled():
             raise RuntimeError("Cannot verify modules whilst the main output is active")
 
         logging.info("> Verifying modules")
@@ -321,47 +337,62 @@ class Yukon:
         self.__leds[switch].value = value
 
     def enable_main_output(self):
-        if self.is_main_output() is False:
+        if self.is_main_output_enabled() is False:
+            logging.info("> Checking input voltage ...")
+            voltage_in = self.read_input_voltage()
+            if voltage_in > self.ABSOLUTE_MAX_VOLTAGE_LIMIT:
+                raise OverVoltageError(f"[Yukon] Input voltage of {voltage_in}V exceeds the maximum of {self.ABSOLUTE_MAX_VOLTAGE_LIMIT}V! Aborting enable output")
+
+            if voltage_in > self.__voltage_limit:
+                raise OverVoltageError(f"[Yukon] Input voltage of {voltage_in}V exceeds the user set limit of {self.__voltage_limit}V! Aborting enable output")
+
+            if voltage_in < self.VOLTAGE_ZERO_LEVEL:
+                raise UnderVoltageError("[Yukon] No input voltage detected! Make sure power is being provided to the XT-30 (yellow) connector")
+
+            if voltage_in < self.VOLTAGE_LOWER_LIMIT:
+                raise UnderVoltageError(f"[Yukon] Input voltage below minimum operating level of {self.VOLTAGE_LOWER_LIMIT}V! Aborting enable output")
+
             start = time.monotonic_ns()
 
-            self.__select_address(board.VOLTAGE_SENSE_ADDR)
-
-            old_voltage = max(((self.__shared_adc_voltage() - self.VOLTAGE_MIN_MEASURE) * self.VOLTAGE_MAX) / (self.VOLTAGE_MAX_MEASURE - self.VOLTAGE_MIN_MEASURE), 0.0)
+            old_voltage = self.read_output_voltage()
             first_stable_time = 0
             new_voltage = 0
-            dur = 100 * 1000 * 1000
-            dur_b = 5 * 1000 * 1000
 
             logging.info("> Enabling output ...")
             self.__enable_main_output()
             while True:
-                new_voltage = ((self.__shared_adc_voltage() - self.VOLTAGE_MIN_MEASURE) * self.VOLTAGE_MAX) / (self.VOLTAGE_MAX_MEASURE - self.VOLTAGE_MIN_MEASURE)
-                if new_voltage > self.ABSOLUTE_MAX_VOLTAGE_LIMIT:
+                new_voltage = self.read_output_voltage()
+                if new_voltage > self.__voltage_limit:  # User limit cannot be beyond the absolute max, so this check is fine
                     self.disable_main_output()
-                    raise OverVoltageError("[Yukon] Input voltage exceeded a safe level! Turning off output")
+                    if new_voltage > self.ABSOLUTE_MAX_VOLTAGE_LIMIT:
+                        raise OverVoltageError(f"[Yukon] Output voltage of {new_voltage}V exceeded the maximum of {self.ABSOLUTE_MAX_VOLTAGE_LIMIT}V! Turning off output")
+                    else:
+                        raise OverVoltageError(f"[Yukon] Output voltage of {new_voltage}V exceeded the user set limit of {self.__voltage_limit}V! Turning off output")
 
                 new_time = time.monotonic_ns()
                 if abs(new_voltage - old_voltage) < 0.05:
                     if first_stable_time == 0:
                         first_stable_time = new_time
-                    elif new_time - first_stable_time > dur_b:
+                    elif new_time - first_stable_time > self.OUTPUT_STABLISE_TIME_NS:
                         break
                 else:
                     first_stable_time = 0
 
-                if new_time - start > dur:
+                if new_time - start > self.OUTPUT_STABLISE_TIMEOUT_NS:
                     self.disable_main_output()
                     raise FaultError("[Yukon] Output voltage did not stablise in an acceptable time. Turning off output")
 
                 old_voltage = new_voltage
 
-            if new_voltage < self.VOLTAGE_ZERO_LEVEL:
+            # Short Circuit
+            if new_voltage < self.VOLTAGE_SHORT_LEVEL:
                 self.disable_main_output()
-                raise UnderVoltageError("[Yukon] No input voltage detected! Make sure power is being provided to the XT-30 (yellow) connector")
+                raise FaultError(f"[Yukon] Possible short circuit! Output voltage was {new_voltage}V whilst the input voltage was {voltage_in}V. Turning off output")
 
+            # Under Voltage
             if new_voltage < self.VOLTAGE_LOWER_LIMIT:
                 self.disable_main_output()
-                raise UnderVoltageError("[Yukon] Input voltage below minimum operating level. Turning off output")
+                raise UnderVoltageError(f"[Yukon] Output voltage of {new_voltage}V below minimum operating level. Turning off output")
 
             self.clear_readings()
 
@@ -374,7 +405,7 @@ class Yukon:
         self.__main_en.value = False
         logging.info("> Output disabled")
 
-    def is_main_output(self):
+    def is_main_output_enabled(self):
         return self.__main_en.value
 
     def __deselect_address(self):
@@ -406,34 +437,23 @@ class Yukon:
             tca.change_output_mask(self.__adc_io_chip, self.__adc_io_mask, state)
 
     def __shared_adc_voltage(self):
-        return (self.__shared_adc.value * 3.3) / 65536
+        return (self.__shared_adc.value * 3.3) / 65535  # This has been checked to be correct
 
-    def read_voltage(self):
-        self.__select_address(board.VOLTAGE_SENSE_ADDR)
-        # return (self.__shared_adc_voltage() * (100 + 16)) / 16  # Old equation, kept for reference
-        return max(((self.__shared_adc_voltage() - self.VOLTAGE_MIN_MEASURE) * self.VOLTAGE_MAX) / (self.VOLTAGE_MAX_MEASURE - self.VOLTAGE_MIN_MEASURE), 0.0)
+    def read_input_voltage(self):
+        self.__select_address(board.VOLTAGE_IN_SENSE_ADDR)
+        return u16_to_voltage_in(self.__shared_adc.value)
+
+    def read_output_voltage(self):
+        self.__select_address(board.VOLTAGE_OUT_SENSE_ADDR)
+        return u16_to_voltage_out(self.__shared_adc.value)
 
     def read_current(self):
         self.__select_address(board.CURRENT_SENSE_ADDR)
-        # return (self.__shared_adc_voltage() - 0.015) / ((1 + (5100 / 27.4)) * 0.0005)  # Old equation, kept for reference
-        return max(((self.__shared_adc_voltage() - self.CURRENT_MIN_MEASURE) * self.CURRENT_MAX) / (self.CURRENT_MAX_MEASURE - self.CURRENT_MIN_MEASURE), 0.0)
+        return u16_to_current(self.__shared_adc.value)
 
     def read_temperature(self):
         self.__select_address(board.TEMP_SENSE_ADDR)
-        sense = self.__shared_adc_voltage()
-        r_thermistor = sense / ((3.3 - sense) / 5100)
-        ROOM_TEMP = 273.15 + 25
-        RESISTOR_AT_ROOM_TEMP = 10000.0
-        BETA = 3435
-        t_kelvin = (BETA * ROOM_TEMP) / (BETA + (ROOM_TEMP * math.log(r_thermistor / RESISTOR_AT_ROOM_TEMP)))
-        t_celsius = t_kelvin - 273.15
-
-        # https://www.allaboutcircuits.com/projects/measuring-temperature-with-an-ntc-thermistor/
-        return t_celsius
-
-    def read_expansion(self):
-        self.__select_address(board.EX_ADC_ADDR)
-        return self.__shared_adc_voltage()
+        return analog_to_temp(self.__shared_adc_voltage())
 
     def read_slot_adc1(self, slot):
         self.__select_address(slot.ADC1_ADDR)
@@ -450,28 +470,47 @@ class Yukon:
         self.__monitor_action_callback = callback_function
 
     def monitor(self):
-        voltage = self.read_voltage()
-        if voltage > self.__voltage_limit:
-            self.disable_main_output()
-            raise OverVoltageError(f"[Yukon] Voltage of {voltage}V exceeded the user set level of {self.__voltage_limit}V! Turning off output")
+        voltage_in = self.read_input_voltage()
 
-        if voltage < self.VOLTAGE_LOWER_LIMIT:
+        # Over Voltage
+        if voltage_in > self.__voltage_limit:  # User limit cannot be beyond the absolute max, so this check is fine
             self.disable_main_output()
-            raise UnderVoltageError(f"[Yukon] Voltage of {voltage}V below minimum operating level. Turning off output")
+            if voltage_in > self.ABSOLUTE_MAX_VOLTAGE_LIMIT:
+                raise OverVoltageError(f"[Yukon] Input voltage of {voltage_in}V exceeded the maximum of {self.ABSOLUTE_MAX_VOLTAGE_LIMIT}V! Turning off output")
+            else:
+                raise OverVoltageError(f"[Yukon] Input voltage of {voltage_in}V exceeded the user set limit of {self.__voltage_limit}V! Turning off output")
 
+        # Under Voltage
+        if voltage_in < self.VOLTAGE_LOWER_LIMIT:
+            self.disable_main_output()
+            raise UnderVoltageError(f"[Yukon] Input voltage of {voltage_in}V below minimum operating level. Turning off output")
+
+        # Short Circuit
+        voltage_out = self.read_output_voltage()
+        if voltage_out < self.VOLTAGE_SHORT_LEVEL:
+            self.disable_main_output()
+            raise FaultError(f"[Yukon] Possible short circuit! Output voltage was {voltage_out}V whilst the input voltage was {voltage_in}V. Turning off output")
+
+        # Under Voltage
+        if voltage_out < self.VOLTAGE_LOWER_LIMIT:
+            self.disable_main_output()
+            raise UnderVoltageError(f"[Yukon] Output voltage of {voltage_out}V below minimum operating level. Turning off output")
+
+        # Over Current
         current = self.read_current()
         if current > self.__current_limit:
             self.disable_main_output()
-            raise OverCurrentError(f"[Yukon] Current of {current}A exceeded the user set level of {self.__current_limit}A! Turning off output")
+            raise OverCurrentError(f"[Yukon] Current of {current}A exceeded the user set limit of {self.__current_limit}A! Turning off output")
 
+        # Over Temperature
         temperature = self.read_temperature()
         if temperature > self.__temperature_limit:
             self.disable_main_output()
-            raise OverTemperatureError(f"[Yukon] Temperature of {temperature}°C exceeded the user set level of {self.__temperature_limit}°C! Turning off output")
+            raise OverTemperatureError(f"[Yukon] Temperature of {temperature}°C exceeded the user set limit of {self.__temperature_limit}°C! Turning off output")
 
         # Run some user action based on the latest readings
         if self.__monitor_action_callback is not None:
-            self.__monitor_action_callback(voltage, current, temperature)
+            self.__monitor_action_callback(voltage_in, voltage_out, current, temperature)
 
         for module in self.__slot_assignments.values():
             if module is not None:
@@ -481,9 +520,13 @@ class Yukon:
                     self.disable_main_output()
                     raise  # Now the output is off, let the exception continue into user code
 
-        self.__max_voltage = max(voltage, self.__max_voltage)
-        self.__min_voltage = min(voltage, self.__min_voltage)
-        self.__avg_voltage += voltage
+        self.__max_voltage_in = max(voltage_in, self.__max_voltage_in)
+        self.__min_voltage_in = min(voltage_in, self.__min_voltage_in)
+        self.__avg_voltage_in += voltage_in
+
+        self.__max_voltage_out = max(voltage_out, self.__max_voltage_out)
+        self.__min_voltage_out = min(voltage_out, self.__min_voltage_out)
+        self.__avg_voltage_out += voltage_out
 
         self.__max_current = max(current, self.__max_current)
         self.__min_current = min(current, self.__min_current)
@@ -551,9 +594,12 @@ class Yukon:
 
     def get_readings(self):
         return OrderedDict({
-            "V_max": self.__max_voltage,
-            "V_min": self.__min_voltage,
-            "V_avg": self.__avg_voltage,
+            "Vi_max": self.__max_voltage_in,
+            "Vi_min": self.__min_voltage_in,
+            "Vi_avg": self.__avg_voltage_in,
+            "Vo_max": self.__max_voltage_out,
+            "Vo_min": self.__min_voltage_out,
+            "Vo_avg": self.__avg_voltage_out,
             "C_max": self.__max_current,
             "C_min": self.__min_current,
             "C_avg": self.__avg_current,
@@ -564,7 +610,8 @@ class Yukon:
 
     def process_readings(self):
         if self.__count_avg > 0:
-            self.__avg_voltage /= self.__count_avg
+            self.__avg_voltage_in /= self.__count_avg
+            self.__avg_voltage_out /= self.__count_avg
             self.__avg_current /= self.__count_avg
             self.__avg_temperature /= self.__count_avg
 
@@ -573,9 +620,13 @@ class Yukon:
                 module.process_readings()
 
     def __clear_readings(self):
-        self.__max_voltage = float('-inf')
-        self.__min_voltage = float('inf')
-        self.__avg_voltage = 0
+        self.__max_voltage_in = float('-inf')
+        self.__min_voltage_in = float('inf')
+        self.__avg_voltage_in = 0
+        
+        self.__max_voltage_out = float('-inf')
+        self.__min_voltage_out = float('inf')
+        self.__avg_voltage_out = 0
 
         self.__max_current = float('-inf')
         self.__min_current = float('inf')
@@ -598,27 +649,7 @@ class Yukon:
             print(section_name, end=" ")
             for name, value in readings.items():
                 if ((allowed is None) or (allowed is not None and name in allowed)) and ((excluded is None) or (excluded is not None and name not in excluded)):
-                    if type(value) is bool:
+                    if isinstance(value, bool):
                         print(f"{name} = {int(value)},", end=" ")  # Output 0 or 1 rather than True of False, so bools can appear on plotter charts
                     else:
                         print(f"{name} = {value},", end=" ")
-
-    def reset(self):
-        # Only disable the output if enabled (avoids duplicate messages)
-        if self.is_main_output() is True:
-            self.disable_main_output()
-
-        self.__adc_mux_ens[0].value = False
-        self.__adc_mux_ens[1].value = False
-
-        self.__adc_mux_addrs[0].value = False
-        self.__adc_mux_addrs[1].value = False
-        self.__adc_mux_addrs[2].value = False
-
-        self.__leds[0].value = False
-        self.__leds[1].value = False
-
-        # Configure each module so they go back to their default states
-        for module in self.__slot_assignments.values():
-            if module is not None and module.is_initialised():
-                module.configure()

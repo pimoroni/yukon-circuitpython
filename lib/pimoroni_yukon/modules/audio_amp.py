@@ -131,6 +131,7 @@ class AudioAmpModule(YukonModule):
     # | ADC1  | SLOW1 | SLOW2 | SLOW3 | Module               | Condition (if any)          |
     # |-------|-------|-------|-------|----------------------|-----------------------------|
     # | FLOAT | 0     | 1     | 1     | [Proposed] Audio Amp |                             |
+    @staticmethod
     def is_module(adc_level, slow1, slow2, slow3):
         # return adc_level == ADC_FLOAT and slow1 is LOW and slow2 is HIGH and slow3 is HIGH
         return adc_level == ADC_FLOAT and slow1 is HIGH and slow2 is HIGH and slow3 is HIGH
@@ -157,7 +158,7 @@ class AudioAmpModule(YukonModule):
         # Pass the slot and adc functions up to the parent now that module specific initialisation has finished
         super().initialise(slot, adc1_func, adc2_func)
 
-    def configure(self):
+    def reset(self):
         self.__slow_sda.switch_to_output(True)
         self.__slow_scl.switch_to_output(True)
         self.__amp_en.switch_to_output(False)
@@ -248,7 +249,7 @@ class AudioAmpModule(YukonModule):
     def monitor(self):
         temperature = self.read_temperature()
         if temperature > self.TEMPERATURE_THRESHOLD:
-            raise OverTemperatureError(self.__message_header() + f"Temperature of {temperature}°C exceeded the user set level of {self.TEMPERATURE_THRESHOLD}°C! Turning off output")
+            raise OverTemperatureError(self.__message_header() + f"Temperature of {temperature}°C exceeded the limit of {self.TEMPERATURE_THRESHOLD}°C! Turning off output")
 
         # Run some user action based on the latest readings
         if self.__monitor_action_callback is not None:

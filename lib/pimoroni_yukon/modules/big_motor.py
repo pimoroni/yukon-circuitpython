@@ -23,6 +23,7 @@ class BigMotorModule(YukonModule):
     # |-------|-------|-------|-------|----------------------|-----------------------------|
     # | LOW   | 0     | 0     | 1     | Big Motor            | Not in fault                |
     # | LOW   | 0     | 1     | 1     | Big Motor            | In fault                    |
+    @staticmethod
     def is_module(adc_level, slow1, slow2, slow3):
         return adc_level == ADC_LOW and slow1 is LOW and slow3 is HIGH
 
@@ -51,7 +52,7 @@ class BigMotorModule(YukonModule):
         # Pass the slot and adc functions up to the parent now that module specific initialisation has finished
         super().initialise(slot, adc1_func, adc2_func)
 
-    def configure(self):
+    def reset(self):
         self.motor.throttle = None
         self.motor.decay_mode = SLOW_DECAY
 
@@ -84,11 +85,11 @@ class BigMotorModule(YukonModule):
 
         current = self.read_current()
         if current > self.CURRENT_THRESHOLD:
-            raise OverCurrentError(self.__message_header() + f"Current of {current}A exceeded the user set level of {self.CURRENT_THRESHOLD}A! Turning off output")
+            raise OverCurrentError(self.__message_header() + f"Current of {current}A exceeded the limit of {self.CURRENT_THRESHOLD}A! Turning off output")
 
         temperature = self.read_temperature()
         if temperature > self.TEMPERATURE_THRESHOLD:
-            raise OverTemperatureError(self.__message_header() + f"Temperature of {temperature}°C exceeded the user set level of {self.TEMPERATURE_THRESHOLD}°C! Turning off output")
+            raise OverTemperatureError(self.__message_header() + f"Temperature of {temperature}°C exceeded the limit of {self.TEMPERATURE_THRESHOLD}°C! Turning off output")
 
         # Run some user action based on the latest readings
         if self.__monitor_action_callback is not None:

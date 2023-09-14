@@ -16,6 +16,7 @@ class QuadServoDirectModule(YukonModule):
     # | LOW   | 0     | 0     | 0     | Quad Servo Direct    | A1 input near 0V            |
     # | FLOAT | 0     | 0     | 0     | Quad Servo Direct    | A1 input between 0 and 3.3V |
     # | HIGH  | 0     | 0     | 0     | Quad Servo Direct    | A1 input near 3.3V          |
+    @staticmethod
     def is_module(adc_level, slow1, slow2, slow3):
         # Current protos need Slow3 jumpered to GND
         return slow1 is LOW and slow2 is LOW and slow3 is LOW
@@ -42,7 +43,7 @@ class QuadServoDirectModule(YukonModule):
         # Pass the slot and adc functions up to the parent now that module specific initialisation has finished
         super().initialise(slot, adc1_func, adc2_func)
 
-    def configure(self):
+    def reset(self):
         for servo in self.servos:
             servo.angle = None
 

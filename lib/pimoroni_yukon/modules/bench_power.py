@@ -29,6 +29,7 @@ class BenchPowerModule(YukonModule):
     # | LOW   | 1     | 0     | 0     | Bench Power          |                             |
     # | FLOAT | 1     | 0     | 0     | Bench Power          | When V+ is discharging      |
     # FLOAT address included as may not be able to rely on the ADC level being low
+    @staticmethod
     def is_module(adc_level, slow1, slow2, slow3):
         return slow1 is HIGH and slow2 is LOW and slow3 is LOW
 
@@ -56,7 +57,7 @@ class BenchPowerModule(YukonModule):
         # Pass the slot and adc functions up to the parent now that module specific initialisation has finished
         super().initialise(slot, adc1_func, adc2_func)
 
-    def configure(self):
+    def reset(self):
         self.voltage_pwm.duty_cycle = 0
 
         self.__power_en.switch_to_output(False)
@@ -109,7 +110,7 @@ class BenchPowerModule(YukonModule):
 
         temperature = self.read_temperature()
         if temperature > self.TEMPERATURE_THRESHOLD:
-            raise OverTemperatureError(self.__message_header() + f"Temperature of {temperature}°C exceeded the user set level of {self.TEMPERATURE_THRESHOLD}°C! Turning off output")
+            raise OverTemperatureError(self.__message_header() + f"Temperature of {temperature}°C exceeded the limit of {self.TEMPERATURE_THRESHOLD}°C! Turning off output")
 
         voltage_out = self.read_voltage()
 
@@ -138,9 +139,9 @@ class BenchPowerModule(YukonModule):
     def get_readings(self):
         return OrderedDict({
             "PGood": self.__power_good_throughout,
-            "VO_max": self.__max_voltage_out,
-            "VO_min": self.__min_voltage_out,
-            "VO_avg": self.__avg_voltage_out,
+            "Vo_max": self.__max_voltage_out,
+            "Vo_min": self.__min_voltage_out,
+            "Vo_avg": self.__avg_voltage_out,
             "T_max": self.__max_temperature,
             "T_min": self.__min_temperature,
             "T_avg": self.__avg_temperature

@@ -17,6 +17,7 @@ class DualSwitchedModule(YukonModule):
     # | ADC1  | SLOW1 | SLOW2 | SLOW3 | Module               | Condition (if any)          |
     # |-------|-------|-------|-------|----------------------|-----------------------------|
     # | FLOAT | 1     | 0     | 1     | Dual Switched Output |                             |
+    @staticmethod
     def is_module(adc_level, slow1, slow2, slow3):
         return adc_level == ADC_FLOAT and slow1 is HIGH and slow2 is LOW and slow3 is HIGH
 
@@ -35,13 +36,13 @@ class DualSwitchedModule(YukonModule):
         self.__sw_enable = (DigitalInOut(slot.FAST2),
                             DigitalInOut(slot.FAST4))
 
-        self.__power_good = (DigitalInOut(slot.SLOW1),
-                             DigitalInOut(slot.SLOW3))
+        self.__power_good = (DigitalInOut(slot.SLOW3),
+                             DigitalInOut(slot.SLOW1))
 
         # Pass the slot and adc functions up to the parent now that module specific initialisation has finished
         super().initialise(slot, adc1_func, adc2_func)
 
-    def configure(self):
+    def reset(self):
         self.__sw_output[0].switch_to_output(False)
         self.__sw_output[1].switch_to_output(False)
 
@@ -102,7 +103,7 @@ class DualSwitchedModule(YukonModule):
 
         temperature = self.read_temperature()
         if temperature > self.TEMPERATURE_THRESHOLD:
-            raise OverTemperatureError(self.__message_header() + f"Temperature of {temperature}°C exceeded the user set level of {self.TEMPERATURE_THRESHOLD}°C! Turning off output")
+            raise OverTemperatureError(self.__message_header() + f"Temperature of {temperature}°C exceeded the limit of {self.TEMPERATURE_THRESHOLD}°C! Turning off output")
 
         if self.__last_pgood1 is True and pgood1 is not True:
             logging.warn(self.__message_header() + "Power1 is not good")
