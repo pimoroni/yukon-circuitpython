@@ -40,6 +40,7 @@ class Yukon:
 
     OUTPUT_STABLISE_TIMEOUT_NS = 100 * 1000 * 1000
     OUTPUT_STABLISE_TIME_NS = 5 * 1000 * 1000
+    OUTPUT_DISSIPATE_TIMEOUT_NS = 10 * 1000 * 1000 * 1000
 
     def __init__(self, voltage_limit=DEFAULT_VOLTAGE_LIMIT, current_limit=DEFAULT_CURRENT_LIMIT, temperature_limit=DEFAULT_TEMPERATURE_LIMIT, logging_level=logging.LOG_INFO):
         self.__voltage_limit = min(voltage_limit, self.ABSOLUTE_MAX_VOLTAGE_LIMIT)
@@ -298,6 +299,21 @@ class Yukon:
     def initialise_modules(self, allow_unregistered=False, allow_undetected=False, allow_discrepencies=False, allow_no_modules=False):
         if self.is_main_output_enabled():
             raise RuntimeError("Cannot verify modules whilst the main output is active")
+
+        logging.info("> Checking output voltage ...")
+        if self.read_output_voltage() >= self.VOLTAGE_SHORT_LEVEL:
+            logging.info("> Waiting for output voltage to dissipate ...")
+
+            start = time.monotonic_ns()
+            while True:
+                new_voltage = self.read_output_voltage()
+                if new_voltage < self.VOLTAGE_SHORT_LEVEL:
+                    break
+
+                new_time = time.monotonic_ns()
+                if new_time - start > self.OUTPUT_DISSIPATE_TIMEOUT_NS:
+                    raise FaultError("[Yukon] Output voltage did not dissipate in an acceptable time. Aborting module initialisation")
+
 
         logging.info("> Verifying modules")
 
