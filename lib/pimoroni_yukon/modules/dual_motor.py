@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: MIT
 
-from .common import YukonModule, ADC_HIGH, HIGH
+from .common import YukonModule, ADC_HIGH, LOW, HIGH
 from pwmio import PWMOut
 from digitalio import DigitalInOut
 from collections import OrderedDict
@@ -21,11 +21,10 @@ class DualMotorModule(YukonModule):
 
     # | ADC1  | SLOW1 | SLOW2 | SLOW3 | Module               | Condition (if any)          |
     # |-------|-------|-------|-------|----------------------|-----------------------------|
-    # | HIGH  | 1     | 1     | 1     | Dual Motor           |                             |
-    # | HIGH  | 0     | 1     | 1     | Dual Motor           |                             |
+    # | HIGH  | 0     | 0     | 1     | Dual Motor           |                             |
     @staticmethod
     def is_module(adc_level, slow1, slow2, slow3):
-        return adc_level == ADC_HIGH and slow2 is HIGH and slow3 is HIGH
+        return adc_level == ADC_HIGH and slow1 is LOW and slow2 is LOW and slow3 is HIGH
 
     def __init__(self, motor_type=DUAL, frequency=DEFAULT_FREQUENCY):
         super().__init__()
