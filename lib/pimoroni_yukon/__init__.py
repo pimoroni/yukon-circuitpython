@@ -163,6 +163,8 @@ class Yukon:
             else:
                 logging.info(f"No '{module_type.NAME}` module")
 
+        logging.info()  # New line
+
         return slots
 
     def register_with_slot(self, module, slot):
