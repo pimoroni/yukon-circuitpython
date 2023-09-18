@@ -8,17 +8,20 @@ from pimoroni_yukon.conversion import analog_to_temp
 ADC_LOW = 0
 ADC_HIGH = 1
 ADC_FLOAT = 2
-ADC_ANY = 3
 LOW = False
 HIGH = True
 
 
 class YukonModule:
-    NAME = "Unnamed"
+    NAME = "Unknown"
 
+    # | ADC1  | SLOW1 | SLOW2 | SLOW3 | Module               | Condition (if any)          |
+    # |-------|-------|-------|-------|----------------------|-----------------------------|
+    # | FLOAT | 1     | 1     | 1     | Empty                |                             |
     @staticmethod
     def is_module(adc_level, slow1, slow2, slow3):
-        return False
+        # This will return true if a slot is detected as not being empty, so as to give useful error information
+        return adc_level is not ADC_FLOAT or slow1 is not HIGH or slow2 is not HIGH or slow3 is not HIGH
 
     def __init__(self):
         self.slot = None

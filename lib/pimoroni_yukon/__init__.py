@@ -9,7 +9,7 @@ import analogio
 import tca
 
 from pimoroni_yukon.modules import KNOWN_MODULES
-from pimoroni_yukon.modules.common import ADC_FLOAT, ADC_LOW, ADC_HIGH
+from pimoroni_yukon.modules.common import ADC_FLOAT, ADC_LOW, ADC_HIGH, YukonModule
 import pimoroni_yukon.logging as logging
 from pimoroni_yukon.errors import OverVoltageError, UnderVoltageError, OverCurrentError, OverTemperatureError, FaultError, VerificationError
 from pimoroni_yukon.timing import ticks_ms, ticks_add, ticks_diff, TICKS_PERIOD
@@ -167,6 +167,13 @@ class Yukon:
 
         slot = self.__check_slot(slot)
 
+        module_type = type(module)
+        if module_type is YukonModule:
+            raise ValueError("Cannot register YukonModule")
+
+        if module_type not in KNOWN_MODULES:
+            raise ValueError(f"{module_type} is not a known module. If this is custom module, be sure to include it in the KNOWN_MODULES list.")
+
         if self.__slot_assignments[slot] is None:
             self.__slot_assignments[slot] = module
         else:
@@ -187,6 +194,8 @@ class Yukon:
         for m in KNOWN_MODULES:
             if m.is_module(adc_level, slow1, slow2, slow3):
                 return m
+        if YukonModule.is_module(adc_level, slow1, slow2, slow3):
+            return YukonModule
         return None
 
     def __detect_module(self, slot):
