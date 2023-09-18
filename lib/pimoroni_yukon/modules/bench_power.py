@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: MIT
 
-from .common import YukonModule, LOW, HIGH
+from .common import YukonModule, ADC_LOW, LOW, HIGH
 from pwmio import PWMOut
 from digitalio import DigitalInOut
 from collections import OrderedDict
@@ -27,11 +27,9 @@ class BenchPowerModule(YukonModule):
     # | ADC1  | SLOW1 | SLOW2 | SLOW3 | Module               | Condition (if any)          |
     # |-------|-------|-------|-------|----------------------|-----------------------------|
     # | LOW   | 1     | 0     | 0     | Bench Power          |                             |
-    # | FLOAT | 1     | 0     | 0     | Bench Power          | When V+ is discharging      |
-    # FLOAT address included as may not be able to rely on the ADC level being low
     @staticmethod
     def is_module(adc_level, slow1, slow2, slow3):
-        return slow1 is HIGH and slow2 is LOW and slow3 is LOW
+        return adc_level is ADC_LOW and slow1 is HIGH and slow2 is LOW and slow3 is LOW
 
     def __init__(self, halt_on_not_pgood=False):
         super().__init__()
