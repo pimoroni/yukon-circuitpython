@@ -30,17 +30,21 @@ class Yukon:
     VOLTAGE_LOWER_LIMIT = 4.8
     VOLTAGE_ZERO_LEVEL = 0.05
     VOLTAGE_SHORT_LEVEL = 0.5
+    VOLTAGE_DISSIPATE_LEVEL = 0.4
     DEFAULT_CURRENT_LIMIT = 20
     DEFAULT_TEMPERATURE_LIMIT = 80
     ABSOLUTE_MAX_VOLTAGE_LIMIT = 18
 
     DETECTION_SAMPLES = 64
-    DETECTION_ADC_LOW = 0.1
+    DETECTION_ADC_LOW = 0.2
     DETECTION_ADC_HIGH = 3.2
 
-    OUTPUT_STABLISE_TIMEOUT_NS = 100 * 1000 * 1000
-    OUTPUT_STABLISE_TIME_NS = 5 * 1000 * 1000
-    OUTPUT_DISSIPATE_TIMEOUT_NS = 10 * 1000 * 1000 * 1000
+    OUTPUT_STABLISE_TIMEOUT_NS = 200 * 1000 * 1000
+    OUTPUT_STABLISE_TIME_NS = 10 * 1000 * 1000
+    OUTPUT_STABLISE_V_DIFF = 0.1
+
+    OUTPUT_DISSIPATE_TIMEOUT_S = 10
+    OUTPUT_DISSIPATE_TIMEOUT_NS = OUTPUT_DISSIPATE_TIMEOUT_S * 1000 * 1000 * 1000
 
     def __init__(self, voltage_limit=DEFAULT_VOLTAGE_LIMIT, current_limit=DEFAULT_CURRENT_LIMIT, temperature_limit=DEFAULT_TEMPERATURE_LIMIT, logging_level=logging.LOG_INFO):
         self.__voltage_limit = min(voltage_limit, self.ABSOLUTE_MAX_VOLTAGE_LIMIT)
@@ -310,13 +314,13 @@ class Yukon:
             raise RuntimeError("Cannot verify modules whilst the main output is active")
 
         logging.info("> Checking output voltage ...")
-        if self.read_output_voltage() >= self.VOLTAGE_SHORT_LEVEL:
-            logging.info("> Waiting for output voltage to dissipate ...")
+        if self.read_output_voltage() >= self.VOLTAGE_DISSIPATE_LEVEL:
+            logging.info(f"> Waiting up to {self.OUTPUT_DISSIPATE_TIMEOUT_S}s for output voltage to dissipate ...")
 
             start = time.monotonic_ns()
             while True:
                 new_voltage = self.read_output_voltage()
-                if new_voltage < self.VOLTAGE_SHORT_LEVEL:
+                if new_voltage < self.VOLTAGE_DISSIPATE_LEVEL:
                     break
 
                 new_time = time.monotonic_ns()
@@ -395,7 +399,7 @@ class Yukon:
                         raise OverVoltageError(f"[Yukon] Output voltage of {new_voltage}V exceeded the user set limit of {self.__voltage_limit}V! Turning off output")
 
                 new_time = time.monotonic_ns()
-                if abs(new_voltage - old_voltage) < 0.05:
+                if abs(new_voltage - old_voltage) < self.OUTPUT_STABLISE_V_DIFF:
                     if first_stable_time == 0:
                         first_stable_time = new_time
                     elif new_time - first_stable_time > self.OUTPUT_STABLISE_TIME_NS:
