@@ -118,7 +118,7 @@ class DualMotorModule(YukonModule):
             if self.is_enabled():
                 raise RuntimeError("Cannot change current limit whilst motor driver is active")
 
-            # Start with the lowest limit, e
+            # Start with the lowest limit
             chosen_limit = CURRENT_LIMIT_1
             chosen_state = self.__current_limit_states[CURRENT_LIMIT_1]
 
