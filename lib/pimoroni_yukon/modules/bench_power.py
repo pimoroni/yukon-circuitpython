@@ -41,7 +41,7 @@ class BenchPowerModule(YukonModule):
     def initialise(self, slot, adc1_func, adc2_func):
         try:
             # Create the voltage pwm object
-            self.voltage_pwm = PWMOut(slot.FAST2, duty_cycle=0, frequency=250000)
+            self.__voltage_pwm = PWMOut(slot.FAST2, duty_cycle=0, frequency=250000)
         except ValueError as e:
             if slot.ID <= 2 or slot.ID >= 5:
                 conflicting_slot = (((slot.ID - 1) + 4) % 8) + 1
@@ -56,7 +56,7 @@ class BenchPowerModule(YukonModule):
         super().initialise(slot, adc1_func, adc2_func)
 
     def reset(self):
-        self.voltage_pwm.duty_cycle = 0
+        self.__voltage_pwm.duty_cycle = 0
 
         self.__power_en.switch_to_output(False)
         self.__power_good.switch_to_input()
@@ -71,7 +71,7 @@ class BenchPowerModule(YukonModule):
         return self.__motors_en.value
 
     def __set_pwm(self, percent):
-        self.voltage_pwm.duty_cycle = int(((2 ** 16) - 1) * percent)
+        self.__voltage_pwm.duty_cycle = int(((2 ** 16) - 1) * percent)
 
     def set_target_voltage(self, voltage):
         if voltage >= self.VOLTAGE_MID:
