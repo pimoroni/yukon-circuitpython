@@ -72,8 +72,8 @@ class Yukon:
         # ADC mux enable pins
         self.__adc_mux_ens = (digitalio.DigitalInOut(board.ADC_MUX_EN_1),
                               digitalio.DigitalInOut(board.ADC_MUX_EN_2))
-        self.__adc_mux_ens[0].switch_to_output(False)
-        self.__adc_mux_ens[1].switch_to_output(False)
+        self.__adc_mux_ens[0].switch_to_output(True)  # Active low
+        self.__adc_mux_ens[1].switch_to_output(True)  # Active low
 
         # ADC mux address pins
         self.__adc_mux_addrs = (digitalio.DigitalInOut(board.ADC_ADDR_1),
@@ -116,12 +116,7 @@ class Yukon:
         if self.is_main_output_enabled() is True:
             self.disable_main_output()
 
-        self.__adc_mux_ens[0].value = False
-        self.__adc_mux_ens[1].value = False
-
-        self.__adc_mux_addrs[0].value = False
-        self.__adc_mux_addrs[1].value = False
-        self.__adc_mux_addrs[2].value = False
+        self.__deselect_address()
 
         self.__leds[0].value = False
         self.__leds[1].value = False
@@ -440,8 +435,9 @@ class Yukon:
         return self.__main_en.value
 
     def __deselect_address(self):
-        self.__adc_mux_ens[0].value = False
-        self.__adc_mux_ens[1].value = False
+        # Deselect the muxes and reset the address to zero
+        state = self.__adc_io_ens_addrs[0] | self.__adc_io_ens_addrs[1]
+        tca.change_output_mask(self.__adc_io_chip, self.__adc_io_mask, state)
 
     def __select_address(self, address):
         if address < 0:
