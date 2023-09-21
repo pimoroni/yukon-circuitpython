@@ -129,16 +129,16 @@ class DualMotorModule(YukonModule):
                 chosen_limit = limit
                 chosen_state = state
 
-            if chosen_state[0] is -1:
+            if chosen_state[0] == -1:
                 self.__motors_vref1.switch_to_input()
-            elif chosen_state[0] is 0:
+            elif chosen_state[0] == 0:
                 self.__motors_vref1.switch_to_output(False)
             else:
                 self.__motors_vref1.switch_to_output(True)
 
-            if chosen_state[1] is -1:
+            if chosen_state[1] == -1:
                 self.__motors_vref2.switch_to_input()
-            elif chosen_state[1] is 0:
+            elif chosen_state[1] == 0:
                 self.__motors_vref2.switch_to_output(False)
             else:
                 self.__motors_vref2.switch_to_output(True)

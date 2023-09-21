@@ -312,7 +312,7 @@ class Yukon:
 
         logging.info("> Checking output voltage ...")
         if self.read_output_voltage() >= self.OUTPUT_DISSIPATE_LEVEL:
-            logging.info(f"> Waiting for output voltage to dissipate ...")
+            logging.info("> Waiting for output voltage to dissipate ...")
 
             start = time.monotonic_ns()
             while True:
