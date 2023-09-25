@@ -3,9 +3,9 @@
 # SPDX-License-Identifier: MIT
 
 import struct
-import time
 from pimoroni_yukon.timing import ticks_add, ticks_diff, ticks_ms
 from collections import namedtuple
+from microcontroller import delay_us
 
 Command = namedtuple("Command", ("value", "length"))
 
@@ -177,7 +177,7 @@ def SerialServoReceiveHandle(uart):
 
     while uart.in_waiting > 0:
         rxBuf = uart.read(1)[0]
-        time.sleep_us(100)
+        delay_us(100)
         if not frameStarted:
             if rxBuf == FRAME_HEADER:
                 frameCount += 1
@@ -232,7 +232,7 @@ def SerialServoReadTemperature(uart, send_func, rec_func, id, timeout=1.0):
     uart.reset_input_buffer()
 
     uart.write(buffer)
-    time.sleep_us(450)
+    delay_us(500)
 
     try:
         rec_func()
@@ -266,7 +266,7 @@ def SerialServoReadID(uart, send_func, rec_func, id, timeout=1.0):
     uart.reset_input_buffer()
 
     uart.write(buffer)
-    time.sleep_us(450)
+    delay_us(500)
 
     try:
         rec_func()
@@ -299,7 +299,7 @@ def SerialServoReadPosition(uart, send_func, rec_func, id, timeout=1.0):
     uart.reset_input_buffer()
 
     uart.write(buffer)
-    time.sleep_us(450)
+    delay_us(500)
 
     try:
         rec_func()
@@ -332,7 +332,7 @@ def SerialServoReadVin(uart, send_func, rec_func, id, timeout=1.0):
     uart.reset_input_buffer()
 
     uart.write(buffer)
-    time.sleep_us(450)
+    delay_us(500)
 
     try:
         rec_func()
