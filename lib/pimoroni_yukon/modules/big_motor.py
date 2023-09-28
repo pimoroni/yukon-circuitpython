@@ -5,6 +5,7 @@
 from .common import YukonModule, ADC_LOW, LOW, HIGH
 from pwmio import PWMOut
 from digitalio import DigitalInOut
+from rotaryio import IncrementalEncoder
 from adafruit_motor.motor import DCMotor, SLOW_DECAY
 from collections import OrderedDict
 from pimoroni_yukon.errors import FaultError, OverCurrentError, OverTemperatureError
@@ -48,6 +49,9 @@ class BigMotorModule(YukonModule):
         # Create motor control pin objects
         self.__motor_en = DigitalInOut(slot.SLOW3)
         self.__motor_nfault = DigitalInOut(slot.SLOW2)
+
+        # Create rotary encoder object
+        self.encoder = IncrementalEncoder(slot.FAST1, slot.FAST2)
 
         # Pass the slot and adc functions up to the parent now that module specific initialisation has finished
         super().initialise(slot, adc1_func, adc2_func)
