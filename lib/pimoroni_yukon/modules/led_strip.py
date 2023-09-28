@@ -12,7 +12,8 @@ import pimoroni_yukon.logging as logging
 class LEDStripModule(YukonModule):
     NAME = "LED Strip"
     NEOPIXEL = 0
-    DOTSTAR = 1
+    DUAL_NEOPIXEL = 1
+    DOTSTAR = 2
     TEMPERATURE_THRESHOLD = 50.0
 
     # | ADC1  | SLOW1 | SLOW2 | SLOW3 | Module               | Condition (if any)          |
@@ -27,6 +28,8 @@ class LEDStripModule(YukonModule):
         self.__strip_type = strip_type
         if self.__strip_type == self.NEOPIXEL:
             self.NAME += " (NeoPixel)"
+        elif self.__strip_type == self.DUAL_NEOPIXEL:
+            self.NAME += " (Dual NeoPixel)"
         else:
             self.NAME += " (DotStar)"
 
@@ -38,9 +41,21 @@ class LEDStripModule(YukonModule):
 
     def initialise(self, slot, adc1_func, adc2_func):
         # Create the strip driver object
-        if self.__strip_type == self.NEOPIXEL:
+        if self.__strip_type == self.NEOPIXEL or self.__strip_type == self.DUAL_NEOPIXEL:
             from neopixel import NeoPixel
-            self.pixels = NeoPixel(slot.FAST4, self.__num_pixels, brightness=self.__brightness, auto_write=False)
+            if self.__strip_type == self.DUAL_NEOPIXEL:
+                num_pixels = self.__num_pixels
+                if not isinstance(num_pixels, (list, tuple)):
+                    num_pixels = (num_pixels, num_pixels)
+                    
+                brightness = self.__brightness
+                if not isinstance(brightness, (list, tuple)):
+                    brightness = (brightness, brightness)
+                
+                self.pixels = [NeoPixel(slot.FAST4, num_pixels[0], brightness=brightness[0], auto_write=False),
+                               NeoPixel(slot.FAST3, num_pixels[1], brightness=brightness[1], auto_write=False)]
+            else:
+                self.pixels = NeoPixel(slot.FAST4, self.__num_pixels, brightness=self.__brightness, auto_write=False)
         else:
             from adafruit_dotstar import DotStar
             self.pixels = DotStar(slot.FAST3, slot.FAST4, self.__num_pixels, brightness=self.__brightness, auto_write=False)
@@ -67,6 +82,14 @@ class LEDStripModule(YukonModule):
 
     def is_enabled(self):
         return self.__power_en.value
+    
+    @property
+    def pixels1(self):
+        return self.pixels[0]
+
+    @property
+    def pixels2(self):
+        return self.pixels[1]
 
     def read_power_good(self):
         return self.__power_good.value
