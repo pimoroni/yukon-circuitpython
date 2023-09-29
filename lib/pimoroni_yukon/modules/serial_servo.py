@@ -45,11 +45,11 @@ class SerialServoModule(YukonModule):
 
         self.__tx_to_data_en.switch_to_output(True)  # Active low
         self.__data_to_rx_en.switch_to_output(True)  # Active low
-        
+
     def send_on_data(self):
         self.__data_to_rx_en.value = True
         self.__tx_to_data_en.value = False
-        
+
     def receive_on_data(self):
         self.__tx_to_data_en.value = True
         self.__data_to_rx_en.value = False

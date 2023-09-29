@@ -33,7 +33,7 @@ class LEDStripModule(YukonModule):
         else:
             self.NAME += " (DotStar)"
 
-        self.__num_pixels = num_pixels
+        self.__num_leds = num_pixels
         self.__brightness = brightness
         self.halt_on_not_pgood = halt_on_not_pgood
 
@@ -44,21 +44,21 @@ class LEDStripModule(YukonModule):
         if self.__strip_type == self.NEOPIXEL or self.__strip_type == self.DUAL_NEOPIXEL:
             from neopixel import NeoPixel
             if self.__strip_type == self.DUAL_NEOPIXEL:
-                num_pixels = self.__num_pixels
-                if not isinstance(num_pixels, (list, tuple)):
-                    num_pixels = (num_pixels, num_pixels)
-                    
+                num_leds = self.__num_leds
+                if not isinstance(num_leds, (list, tuple)):
+                    num_leds = (num_leds, num_leds)
+
                 brightness = self.__brightness
                 if not isinstance(brightness, (list, tuple)):
                     brightness = (brightness, brightness)
-                
-                self.pixels = [NeoPixel(slot.FAST4, num_pixels[0], brightness=brightness[0], auto_write=False),
-                               NeoPixel(slot.FAST3, num_pixels[1], brightness=brightness[1], auto_write=False)]
+
+                self.strips = [NeoPixel(slot.FAST4, num_leds[0], brightness=brightness[0], auto_write=False),
+                               NeoPixel(slot.FAST3, num_leds[1], brightness=brightness[1], auto_write=False)]
             else:
-                self.pixels = NeoPixel(slot.FAST4, self.__num_pixels, brightness=self.__brightness, auto_write=False)
+                self.strip = NeoPixel(slot.FAST4, self.__num_leds, brightness=self.__brightness, auto_write=False)
         else:
             from adafruit_dotstar import DotStar
-            self.pixels = DotStar(slot.FAST3, slot.FAST4, self.__num_pixels, brightness=self.__brightness, auto_write=False)
+            self.strip = DotStar(slot.FAST3, slot.FAST4, self.__num_leds, brightness=self.__brightness, auto_write=False)
 
         # Create the power control pin objects
         self.__power_good = DigitalInOut(slot.FAST1)
@@ -71,9 +71,6 @@ class LEDStripModule(YukonModule):
         self.__power_en.switch_to_output(False)
         self.__power_good.switch_to_input(Pull.UP)
 
-    def count(self):
-        return self.__num_pixels
-
     def enable(self):
         self.__power_en.value = True
 
@@ -84,12 +81,12 @@ class LEDStripModule(YukonModule):
         return self.__power_en.value
     
     @property
-    def pixels1(self):
-        return self.pixels[0]
+    def strip1(self):
+        return self.strips[0]
 
     @property
-    def pixels2(self):
-        return self.pixels[1]
+    def strip2(self):
+        return self.strips[1]
 
     def read_power_good(self):
         return self.__power_good.value
