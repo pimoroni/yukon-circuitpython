@@ -27,7 +27,6 @@ try:
     switches.enable(1)
     switches.enable(2)
 
-    offset = 0
     sw_a_state = False
     sw_b_state = False
     last_sw_a_state = False
